@@ -1,0 +1,4 @@
+[requirements]
+enabled = false
+# software | stakeholder-software | system-software | stakeholder-system-software | full
+profile = "stakeholder-software"

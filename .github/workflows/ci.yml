@@ -1,0 +1,42 @@
+name: CI
+
+# Common-template tests only. Derived repositories add their own build/test jobs.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  template:
+    if: ${{ github.repository == 'skku-heven/heven-common' && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install heven-common contract dependencies
+        if: ${{ github.repository == 'skku-heven/heven-common' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.7'
+      - name: Requirements behavior tests
+        run: uv run --python 3.11 --no-project --with strictdoc==0.30.4 python -m unittest discover -s tests -p test_requirements.py
+      - name: Verify heven-common template contract
+        if: ${{ github.repository == 'skku-heven/heven-common' }}
+        run: |
+          tests/test_template.sh
+          .claude/skills/bootstrap-repo/tests/test_bootstrap_repo.sh
+          .claude/skills/issue-worker/tests/test_claim_issue.sh
+          ops/runner/tests/test_env_precedence.sh
+          ops/runner/tests/test_pr_set_in_review.sh

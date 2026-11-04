@@ -1,0 +1,44 @@
+name: project status (PR lifecycle)
+
+# PR lifecycle에 맞춰 그 PR이 닫는(Resolves #N) 이슈의 Project Status를
+# draft면 In progress, ready면 In review로 맞춘다. GitHub Project built-in
+# workflow가 이 양방향 전환을 지원하지 않으므로 이 workflow가 자동 경로다.
+#
+# 기본 기능: self-hosted runner, RUNNER_SCRIPTS, PROJECT_PAT을 bootstrap에서 준비한다.
+# ON/OFF variable은 사용하지 않는다.
+#
+# 인증: org ProjectV2 쓰기는 기본 GITHUB_TOKEN으로 불가능하다. 그래서
+# repo secret PROJECT_PAT(권한: project + repo)을 GH_TOKEN으로 주입한다.
+# 스크립트는 raw graphql mutation을 써서 project scope만으로 동작한다.
+# 자세한 건 pr-set-in-review.sh 참조.
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, converted_to_draft, closed]
+
+concurrency:
+  group: project-status-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  reconcile-status:
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Reconcile linked issue Status with PR draft state
+        shell: bash
+        env:
+          RUNNER_SCRIPTS: ${{ vars.RUNNER_SCRIPTS }}
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "ERROR: PROJECT_PAT secret 미설정 -> Project Status 동기화 실패"
+            exit 1
+          fi
+          : "${RUNNER_SCRIPTS:?RUNNER_SCRIPTS variable 미설정}"
+          # Expand only a literal $HOME/ prefix; never evaluate repository variables.
+          if [[ "$RUNNER_SCRIPTS" == '$HOME/'* ]]; then
+            RUNNER_SCRIPTS="$HOME/${RUNNER_SCRIPTS#\$HOME/}"
+          fi
+          "${RUNNER_SCRIPTS}/pr-set-in-review.sh" \
+            ${{ github.event.pull_request.number }}
