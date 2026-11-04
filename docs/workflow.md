@@ -11,13 +11,13 @@
 
 A derived repo records its choices here during bootstrap or first requirements session:
 
-- StrictDoc: OFF by default; `heven.toml` is the machine-readable source.
-- Requirement levels: select a profile when enabling StrictDoc; see [requirements workflow](requirements-workflow.md).
+- StrictDoc: OFF (participant distribution); `heven.toml` is the machine-readable source.
+- Requirement levels: not used; canonical requirements belong to heven-hackathon-2026-dev.
 - Requirement source: docs/requirements/*.sdoc (StrictDoc).
 - Issue tracker: this repository's GitHub Issues and linked Project.
-- Repository Notion hub: not selected (enabled / disabled).
-- Discord notifications / mentions: not selected (enabled / disabled, separately).
-- Codex PR review: not selected (enabled / disabled; defaults to disabled for direct script callers).
+- Repository Notion hub: disabled.
+- Discord notifications / mentions: disabled / disabled.
+- Codex PR review: disabled.
 - Project status automation: required (self-hosted runner + PROJECT_PAT + RUNNER_SCRIPTS).
 - Common Notion guides: retained regardless of repository hub choice.
 
