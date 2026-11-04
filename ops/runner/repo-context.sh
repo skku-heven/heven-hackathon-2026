@@ -21,7 +21,7 @@ export MAX_ISSUES="${MAX_ISSUES:-3}"
 # Repo-specific human documentation. Bootstrap replaces the placeholder with the
 # exact read-back repo hub URL, never the Project Info child URL. Automation
 # fetches the repo hub only through an available MCP.
-export NOTION_GUIDE_URL="${NOTION_GUIDE_URL:-<NOTION_REPO_URL>}"
+export NOTION_GUIDE_URL="${NOTION_GUIDE_URL:-}"
 export OPEN_MILESTONES="[]"
 
 if command -v gh >/dev/null 2>&1; then
