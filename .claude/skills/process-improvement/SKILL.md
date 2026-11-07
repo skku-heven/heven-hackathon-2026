@@ -1,16 +1,21 @@
 ---
 name: process-improvement
-description: Review completed development work through retrospective questions and propose shared process improvements for heven-common. Incomplete draft, usable for an initial retrospective.
+description: 끝난 작업을 질문으로 되돌아보고 팀 프로세스와 에이전트 환경의 공통 개선을 heven-common에 제안한다. 명시적으로 호출한다.
+disable-model-invocation: true
 ---
 
-# Process improvement — 회고와 프로세스 개선
+# Process improvement
 
-**미완성 초안.** 호출해서 사용할 수 있으며, 실제 회고를 통해 절차를 다듬을 예정이다.
+[Atlassian 회고](https://www.atlassian.com/team-playbook/plays/retrospective)의 팀 회고에 원본 `retro`의 에이전트 환경 점검을 더한 스킬이다.
 
-[Atlassian 회고 가이드](https://www.atlassian.com/team-playbook/plays/retrospective)를 우선 참고한다. 잘된 점, 어려웠던 점, 다음에 바꿀 점을 살피고 후속 결과를 확인하는 흐름이다. Atlassian 제품 사용은 필수가 아니다.
-
-1. 완료한 작업의 대화·이슈·PR·커밋·검증 결과를 읽고 회고 범위를 맞춘다. 관찰한 사실과 추측을 구분한다.
-2. 잘된 점과 반복된 어려움을 짚고, grilling처럼 답변에 따라 질문을 이어가며 원인과 개선 방향을 함께 확인한다. 직접 확인할 수 있는 사실은 조사하고, 사람을 탓하기보다 작업 방식에 집중한다.
-3. 개선 후보를 근거·기대 효과·적용 위치와 함께 짧게 정리한다. 프로젝트 고유 문제를 공통 규칙으로 일반화하지 않는다.
-4. 합의한 공통 개선은 현재 프로젝트에만 덧붙이기보다 `skku-heven/heven-common`의 스킬·템플릿·워크플로우 변경으로 제안한다. 적용을 요청받으면 해당 저장소의 기존 이슈·PR 흐름을 따르고, 임의로 다른 저장소를 수정하거나 머지하지 않는다.
-5. 채택한 개선의 담당자·확인 방법·다음 회고에서 확인할 결과를 정리한다. 모르는 내용은 미정으로 남긴다.
+1. 끝난 작업의 대화, 세션 기록, 이슈, PR, 커밋, 검증 결과를 읽고 범위를 맞춘다. 사실과 추측을 구분한다.
+2. 잘된 점, 어려웠던 점, 바꿀 점을 묻고 [grilling](../grilling/SKILL.md)처럼 답에 따라 원인을 파고든다. 사람보다 작업 방식에 집중한다. 직접 확인할 수 있는 사실은 조사한다.
+3. 에이전트 환경도 점검한다.
+   - **탐색:** 필요한 파일을 찾는 데 오래 걸렸는가?
+   - **자동 검사:** 자동으로 잡을 수 있던 실수인가? 판단이 필요 없는 규칙은 문서보다 검사로 만든다.
+   - **규칙 파일:** `AGENTS.md`나 스킬에 효과 없는 지시, 옮겨야 할 지시가 있는가?
+   - **도구:** 비싸거나 반복되는 호출을 줄일 수 있는가?
+   - **정보 접근:** 꼭 필요한데 에이전트가 못 본 정보가 있었는가?
+4. 개선 후보를 근거, 기대 효과, 적용 위치와 함께 심각한 순서로 정리한다. 프로젝트 고유 문제를 공통 규칙으로 일반화하지 않는다.
+5. 합의한 공통 개선은 `skku-heven/heven-common`의 스킬, 템플릿, 자동화 변경으로 제안한다. 요청받은 경우에만 그 저장소의 이슈와 PR 흐름으로 적용한다.
+6. 채택한 개선의 담당자와 다음에 확인할 결과를 정리한다. 모르는 내용은 미정으로 남긴다.

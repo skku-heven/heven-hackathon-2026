@@ -2,9 +2,7 @@ UV ?= uv
 REQ = $(UV) run --python 3.11 --no-project python tools/requirements.py
 PORT ?= 5111
 
-.PHONY: setup requirements-init requirements-check requirements-sync docs serve
-setup:
-	$(REQ) setup
+.PHONY: requirements-init requirements-check requirements-sync docs serve
 requirements-init:
 	$(REQ) init
 requirements-check:

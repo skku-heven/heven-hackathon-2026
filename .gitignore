@@ -35,14 +35,11 @@ Thumbs.db
 *.jsonl
 *.log
 
-# ROS1 catkin workspace generated dirs
+# Build output
 build/
-devel/
 install/
 logs/
 log/
-.catkin_workspace
-.catkin_tools/
 
 # ROS bags
 *.bag

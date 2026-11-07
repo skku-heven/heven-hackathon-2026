@@ -11,15 +11,10 @@ import time
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-PROFILES = {
-    'software': ['software'],
-    'stakeholder-software': ['stakeholder', 'software'],
-    'system-software': ['system', 'software'],
-    'stakeholder-system-software': ['stakeholder', 'system', 'software'],
-    'full': ['business', 'stakeholder', 'system', 'software'],
-}
-PREFIX = {'BR': 'business', 'STK': 'stakeholder', 'STR': 'stakeholder',
-          'SYS': 'system', 'SW': 'software', 'SWR': 'software'}
+# Rank orders the hierarchy; software and hardware are siblings under system.
+RANK = {'business': 0, 'stakeholder': 1, 'system': 2, 'software': 3, 'hardware': 3}
+LEVELS = list(RANK)
+PREFIX = {'BR': 'business', 'STK': 'stakeholder', 'SYS': 'system', 'SW': 'software', 'HW': 'hardware'}
 STATUS = {'Draft', 'In Review', 'Approved', 'Retired'}
 CATEGORY = {'Functional', 'Non-functional/Performance Efficiency', 'Non-functional/Other'}
 START = '<!-- heven:requirements:start -->'
@@ -28,19 +23,22 @@ END = '<!-- heven:requirements:end -->'
 
 def configuration(root):
     data = tomllib.loads((root / 'heven.toml').read_text())['requirements']
-    if type(data.get('enabled')) is not bool or data.get('profile') not in PROFILES:
-        raise ValueError('heven.toml: enabled must be true/false; select a documented profile.')
+    if type(data.get('enabled')) is not bool:
+        raise ValueError('heven.toml: enabled must be true/false.')
+    if data['enabled']:
+        levels = data.get('levels')
+        if (not isinstance(levels, list) or not levels or len(set(levels)) != len(levels)
+                or any(level not in RANK for level in levels)):
+            raise ValueError(f'heven.toml: levels must select one or more of {LEVELS}.')
+        data['levels'] = sorted(levels, key=LEVELS.index)
     return data
 
 
-def initialize(root, profile):
+def initialize(root, levels):
     directory = root / 'docs/requirements'
     directory.mkdir(parents=True, exist_ok=True)
-    marker = directory / '.heven-profile'
-    if marker.exists() and marker.read_text().strip() != profile:
-        raise ValueError('Profile changed: review migration of existing requirements before updating .heven-profile.')
     planned = {'strictdoc_config.py': (ROOT / 'tools/requirements/strictdoc_config.py').read_text()}
-    for level in PROFILES[profile]:
+    for level in levels:
         grammar = (ROOT / f'tools/requirements/{level}.sgra').read_text()
         planned[f'docs/requirements/{level}.sdoc'] = (
             f'[DOCUMENT]\nTITLE: {level.title()} requirements\n\n{grammar}')
@@ -48,8 +46,28 @@ def initialize(root, profile):
         path = root / name
         if not path.exists():
             path.write_text(content)
-    if not marker.exists():
-        marker.write_text(profile + '\n')
+
+
+def require_documents(root, levels):
+    names = ['strictdoc_config.py', *(f'docs/requirements/{level}.sdoc' for level in levels)]
+    missing = [name for name in names if not (root / name).exists()]
+    if missing:
+        raise ValueError(f'Missing {", ".join(missing)}: run make requirements-init.')
+
+
+def strictdoc_check(root, binary):
+    """StrictDoc's own grammar and traceability checks, without generating HTML."""
+    result = subprocess.run([binary, 'export', 'docs/requirements', '--config', 'strictdoc_config.py',
+        '--formats', 'json', '--output-dir', 'build/requirements-check', '--no-parallelization'],
+        cwd=root, text=True, capture_output=True)
+    if result.returncode: raise ValueError(result.stdout + result.stderr)
+
+
+def neighbours(levels, level, direction):
+    """Nearest selected levels above (-1) or below (+1) in the hierarchy."""
+    ranks = sorted({RANK[item] for item in levels
+                    if (RANK[item] - RANK[level]) * direction > 0}, key=lambda rank: abs(rank - RANK[level]))
+    return [item for item in levels if ranks and RANK[item] == ranks[0]]
 
 
 def runtime(root):
@@ -85,7 +103,7 @@ def read_nodes(root):
     return records
 
 
-def validate(root, profile):
+def validate(root, levels):
     errors, index = [], {}
     def error(record, message):
         errors.append({'path': record['path'], 'line': record['line'], 'message': message})
@@ -98,10 +116,10 @@ def validate(root, profile):
         record['level'] = PREFIX.get(uid.split('-')[0])
         if record['level'] is None:
             path = Path(record['path'])
-            record['level'] = next((level for level in PROFILES[profile]
+            record['level'] = next((level for level in levels
                 if level == path.stem or level in path.parts), None)
-        if record['level'] not in PROFILES[profile]:
-            error(record, f'{uid}: UID level is outside profile {profile}; review the profile or UID.')
+        if record['level'] not in levels:
+            error(record, f'{uid}: UID level is not selected in heven.toml; review levels or the UID.')
         for name in ('TITLE', 'STATEMENT', 'STATUS'):
             if not fields.get(name, '').strip():
                 error(record, f'{uid}: fill required field {name}.')
@@ -118,17 +136,14 @@ def validate(root, profile):
         for parent in record['parents']:
             if parent not in index:
                 error(record, f'{uid}: parent {parent} does not exist; correct the relation.')
-        levels = PROFILES[profile]
         level = record['level']
         if record['fields'].get('STATUS') == 'Approved' and level in levels:
-            position = levels.index(level)
-            if position and not any(index.get(p, {}).get('level') == levels[position-1]
-                                    for p in record['parents']):
-                error(record, f'{uid}: Approved requirement needs a parent at {levels[position-1]} level.')
-            if position < len(levels)-1 and not any(
-                uid in child['parents'] and child['level'] == levels[position+1]
-                for child in index.values()):
-                error(record, f'{uid}: Approved requirement needs a child at {levels[position+1]} level.')
+            uppers, lowers = neighbours(levels, level, -1), neighbours(levels, level, 1)
+            if uppers and not any(index.get(p, {}).get('level') in uppers for p in record['parents']):
+                error(record, f'{uid}: Approved requirement needs a parent at {" or ".join(uppers)} level.')
+            if lowers and not any(uid in child['parents'] and child['level'] in lowers
+                                  for child in index.values()):
+                error(record, f'{uid}: Approved requirement needs a child at {" or ".join(lowers)} level.')
     active, visited = set(), set()
     def visit(uid):
         if uid in active:
@@ -162,6 +177,7 @@ def block_ids(body):
 def with_block(body, ids):
     body = body or ''
     block_ids(body)  # Refuse ambiguous edits, preserve all human-written text.
+    if not ids and START not in body: return body
     block = START + '\n' + ''.join(f'- {uid}\n' for uid in sorted(set(ids))) + END
     if START in body:
         before, tail = body.split(START)
@@ -211,40 +227,57 @@ class GitHub:
 
 
 def synchronize(root, index, repo, api, apply=False):
-    errors, plans, reverse = [], [], {}
+    """One bad Issue or PR is reported without stopping the other PRs."""
+    errors, warnings, plans, reverse = [], [], [], {}
+    def unknown(ids): return sorted(set(ids) - index.keys())
     # Include closed issues: closing an issue does not discard traceability.
     for issue in api.pages(f'repos/{repo}/issues?state=all'):
         if 'pull_request' in issue: continue
-        ids = block_ids(issue.get('body'))
+        report = warnings if issue.get('state') == 'closed' else errors
+        try:
+            ids = block_ids(issue.get('body'))
+        except ValueError as exc:
+            report.append(f'Issue #{issue["number"]}: {exc}')
+            continue
         for uid in ids:
-            if uid not in index: errors.append(f'Issue #{issue["number"]}: unknown UID {uid}; correct the issue or requirements.')
             reverse.setdefault(uid, []).append(issue['number'])
-    for pr in api.pages(f'repos/{repo}/pulls?state=open'):
-        for uid in block_ids(pr.get('body')):
-            if uid not in index: errors.append(f'PR #{pr["number"]}: unknown UID {uid}; correct before synchronization.')
+        for uid in unknown(ids):
+            report.append(f'Issue #{issue["number"]}: unknown UID {uid}; correct the issue or requirements.')
+    def linked_ids(number):
         ids = set()
-        for issue in api.linked(repo, pr['number']): ids.update(block_ids(issue.get('body')))
-        for uid in ids:
-            if uid not in index: errors.append(f'PR #{pr["number"]}: unknown UID {uid}; no automatic removal.')
-        body = with_block(pr.get('body'), ids)
-        if body != (pr.get('body') or ''): plans.append((pr['number'], body))
-    if errors: raise ValueError('\n'.join(errors))
+        for issue in api.linked(repo, number): ids.update(block_ids(issue.get('body')))
+        missing = unknown(ids)
+        if missing: raise ValueError(f'unknown UID {", ".join(missing)}; no automatic removal.')
+        return ids
+    for pr in api.pages(f'repos/{repo}/pulls?state=open'):
+        try:
+            missing = unknown(block_ids(pr.get('body')))
+            if missing: raise ValueError(f'unknown UID {", ".join(missing)}; correct before synchronization.')
+            body = with_block(pr.get('body'), linked_ids(pr['number']))
+        except ValueError as exc:
+            errors.append(f'PR #{pr["number"]}: {exc}')
+            continue
+        if body != (pr.get('body') or ''): plans.append(pr['number'])
+    updated = []
     if apply:
-        for number, body in plans:
-            # Re-read before mutation so concurrent edits are not silently overwritten.
-            ids = set()
-            for issue in api.linked(repo, number): ids.update(block_ids(issue.get('body')))
-            if ids - index.keys(): raise ValueError('Requirements changed during synchronization; rerun after validation.')
-            current = api.call(f'repos/{repo}/pulls/{number}')
-            desired = with_block(current.get('body'), ids)
-            if desired != (current.get('body') or ''):
-                api.call(f'repos/{repo}/pulls/{number}', {'body': desired})
-    return {'updated_prs' if apply else 'pending_prs': [n for n, _ in plans], 'issues_by_uid': reverse}
+        for number in plans:
+            try:
+                # Re-read before mutation so concurrent edits are not silently overwritten.
+                ids = linked_ids(number)
+                current = api.call(f'repos/{repo}/pulls/{number}')
+                desired = with_block(current.get('body'), ids)
+                if desired != (current.get('body') or ''):
+                    api.call(f'repos/{repo}/pulls/{number}', {'body': desired})
+                updated.append(number)
+            except ValueError as exc:
+                errors.append(f'PR #{number}: {exc}')
+    return {'updated_prs' if apply else 'pending_prs': updated if apply else plans,
+            'issues_by_uid': reverse, 'errors': errors, 'warnings': warnings}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['init', 'setup', 'check', 'docs', 'serve', 'sync'])
+    parser.add_argument('command', choices=['init', 'check', 'docs', 'serve', 'sync'])
     parser.add_argument('--root', type=Path, default=ROOT)
     parser.add_argument('--port', type=int, default=5111)
     parser.add_argument('--repo', default=os.environ.get('GITHUB_REPOSITORY'))
@@ -257,14 +290,19 @@ def main():
         if not config['enabled']:
             print('StrictDoc disabled: skipped (no dependency installation or GitHub writes).')
             return 0
-        initialize(root, config['profile'])
-        if args.command != 'init': runtime(root)
-        if args.command in ('check', 'sync', 'docs', 'serve'):
-            index, errors = validate(root, config['profile'])
-            report.update(requirements=len(index), errors=errors)
-            if errors: raise ValueError('Requirements validation failed; see locations below.')
+        levels = config['levels']
+        if args.command == 'init':
+            initialize(root, levels)
+            print(json.dumps({'status': 'initialized', 'levels': levels}))
+            return 0
+        require_documents(root, levels)
+        runtime(root)
+        index, errors = validate(root, levels)
+        report.update(requirements=len(index), errors=errors)
+        if errors: raise ValueError('Requirements validation failed; see locations below.')
         binary = str(Path(sys.executable).parent / 'strictdoc')
-        if args.command in ('check', 'docs'):
+        strictdoc_check(root, binary)
+        if args.command == 'docs':
             result = subprocess.run([binary, 'export', 'docs/requirements', '--config', 'strictdoc_config.py',
                 '--output-dir', 'build/strictdoc', '--no-parallelization'], cwd=root,
                 text=True, capture_output=True)
@@ -275,7 +313,12 @@ def main():
         elif args.command == 'sync':
             if not args.repo or not re.fullmatch(r'[\w.-]+/[\w.-]+', args.repo):
                 raise ValueError('Specify --repo owner/name or GITHUB_REPOSITORY.')
-            report.update(synchronize(root, index, args.repo, GitHub(), args.apply))
+            result = synchronize(root, index, args.repo, GitHub(), args.apply)
+            report.update(result)
+            report['errors'] = [{'path': 'github', 'line': 1, 'message': message} for message in result['errors']]
+            for message in result['warnings']:
+                print(f'warning: {message}', file=sys.stderr)
+            if report['errors']: report['status'] = 'failed'
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as exc:
         report['status'] = 'failed'
         report['errors'].append({'path': 'requirements', 'line': 1, 'message': str(exc)})

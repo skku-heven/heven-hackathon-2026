@@ -50,6 +50,7 @@ Notion은 이 자동화의 필수 의존성이 아니다.
 
 - 보이는 Project item이 정확히 하나여야 한다.
 - 그 item의 Status가 정확히 `Ready`여야 한다.
+- GitHub Blocked by에 열린 선행 이슈가 없어야 한다. 있으면 그 번호를 보여 주고 멈춘다.
 - `gh` token에 Project 읽기 권한이 있고 해당 Project에 접근할 수 있어야 한다.
 - `projectItems pagination`이 감지되면 일부 item만 보고 판단하지 않고 실패한다.
 
@@ -67,12 +68,12 @@ Backlog / In review / Done, Status를 읽을 수 없는 상태, Project item이 
      git/GitHub mutation 없이 종료한다. 여러 개거나 malformed이면 실패한다.
 3. linked PR이 없을 때만 Issue Type과 제목으로 새 canonical branch
    `<type>/<N>-<slug>`를 계산한다. 그 head에 unlinked open PR이 있으면 conflict로 실패한다.
-4. 새 claim이면 전체 `projectItems`가 보이는지와 정확히 하나의 `Ready` item인지 확인한다.
+4. 새 claim이면 전체 `projectItems`가 보이는지와 정확히 하나의 `Ready` item인지, 열린 선행 이슈가 없는지 확인한다.
 5. Ready 확인 후 remote issue branch를 조회한다. 하나면 이전 push/PR-create 실패의
    retry로 복구하고, 여러 개면 실패하며, 없으면 최신 base에서 canonical branch를 만든다.
 6. `origin/$BASE..HEAD` commit 수가 0일 때만 첫 empty commit을 만든다. tree diff가
    비어 있어도 기존 empty commit이 있으면 추가하지 않는다.
-7. branch를 push하고 `Resolves #N`이 있는 **draft PR**을 만든다.
+7. branch를 push하고 PR 템플릿과 `Resolves #N`으로 **draft PR**을 만든다.
 8. GitHub Project의 `PR linked to issue` 자동화가 issue를 In progress로 옮긴다.
 
 Issue Type mapping:
@@ -86,12 +87,10 @@ Issue Type mapping:
 ## 작업 중과 완료
 
 - 작업 중에는 `git commit && git push`로 draft PR을 갱신한다.
-- draft 동안 CI는 실행하지 않는다.
-- 구현과 자체 검증을 끝낸 뒤 PR에서 **Ready for review**를 선택한다.
-- Ready for review는 저장소에 구성된 CI를 실행하고, ENABLE_CODEX_REVIEW=true인 경우에만 Codex 자동 리뷰를 실행한다.
-- 기본 `project-status` 자동화가 linked issue를 In review로 옮긴다.
-- Ready PR을 다시 draft로 바꾸면 linked issue를 In progress로 되돌린다.
-- 상태가 바뀌지 않으면 Actions 결과와 runner·PROJECT_PAT·RUNNER_SCRIPTS 설정을 확인한다.
+- 저장소 CI를 언제 돌릴지는 각 workflow 설정을 따른다. StrictDoc ON이면 요구사항 검사는 draft에서도 실행된다.
+- 구현과 자체 검증을 끝낸 뒤 PR에서 **Ready for review**를 선택한다. `ENABLE_CODEX_REVIEW=true`이면 이때 Codex 리뷰가 실행된다.
+- `project-status`가 PR 상태에 따라 이슈를 옮긴다: draft는 In progress, Ready는 In review, merge 없이 닫으면 Ready.
+- 상태가 바뀌지 않으면 Actions 결과와 runner, `PROJECT_PAT`을 확인한다.
 - 사람 리뷰 후 maintainer가 repository에서 허용된 merge 방식 중 변경에 맞는 방식을
   선택해 `dev`에 merge한다.
 - merge 뒤 remote 작업 branch는 repository 설정에 따라 GitHub가 자동 삭제한다.
@@ -105,10 +104,6 @@ Issue Type mapping:
 - `dev`/`main`에 직접 commit하지 않는다.
 - PR은 항상 draft로 시작하고 완성 전 Ready for review로 올리지 않는다.
 
-## 요구사항 기반 작업
+## StrictDoc ON 저장소
 
-`requirements-to-issues`가 만든 이슈는 연결된 StrictDoc UID와 합격 조건을 읽고 작업한다. 새 claim 전에 선행 이슈가 완료됐는지 확인하며, 미완료이면 Ready 전환을 임의로 하지 않고 blocker를 보고한다. 기존 canonical PR 재사용 계약은 그대로 유지한다.
-
-## Requirement links
-
-When `heven.toml` enables StrictDoc, read the Issue managed UID block and the referenced requirements before implementation. Keep `Resolves #N` in the PR body; the requirements-links workflow copies the union from linked same-repository Issues while preserving human text. Do not maintain a second manual UID list. `make requirements-check` validates requirements; `make requirements-sync` previews link changes. See `docs/requirements-workflow.md`.
+`heven.toml`에서 StrictDoc이 켜져 있으면 이슈의 UID 블록과 해당 요구사항을 읽고 작업한다. PR에는 `Resolves #N`만 유지한다. UID는 연결된 이슈에서 자동으로 복사되므로 직접 관리하지 않는다. 자세한 내용은 `docs/requirements-workflow.md`를 따른다.

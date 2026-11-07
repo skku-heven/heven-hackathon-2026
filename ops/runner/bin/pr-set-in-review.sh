@@ -5,67 +5,31 @@
 # PR이 닫는(Resolves #N) 이슈들의 Project Status를 PR 상태와 맞춘다.
 # draft면 "In progress", ready면 "In review"이며 project-status.yml이 호출한다.
 #
-# 원본은 repo `ops/runner/bin/`에 커밋되어 있다. 실행은 각 머신에 배포된 이 경로에서.
+# project-status.yml이 기본 브랜치를 checkout해 이 파일을 직접 실행한다.
 #
-# 프로젝트 값(project id / Status 필드 / "In review" 옵션)은 **linked issue의
-# 유일한 Project item에서 런타임에 파생**한다 — env 파일이나 repo 변수에
-# 하드코딩하지 않고, repo에 연결된 임의의 Project도 고르지 않는다.
-# 하나의 org runner가 여러 repo(연도별 heven-*-YYYY 등)를 서빙하므로, 각 issue가
-# 실제로 속한 Project로만 라우팅되어야 한다.
+# 프로젝트 값(project id / Status 필드 / Status 옵션)은 **linked issue의 유일한
+# Project item에서 런타임에 파생**한다. repo에 연결된 임의의 Project를 고르지 않는다.
 #
-# 인증: org ProjectV2 읽기/쓰기는 `project` scope가 필요하다. 우선순위:
-#   1) script 진입 시 이미 주입된 nonempty GH_TOKEN (workflow repo secret)
-#   2) incoming GH_TOKEN이 없을 때 env 파일의 PROJECT_PAT
-#   3) 둘 다 없을 때 runner의 gh 로그인 (ambient)
-# env 파일의 GH_TOKEN은 workflow가 주입한 token을 덮지 않으며 인증 fallback도 아니다.
-# 첫 실연동 후 Status가 안 움직이면 PROJECT_PAT(project scope)을 확인.
+# 인증: org ProjectV2 읽기/쓰기는 PROJECT_PAT(project + repo)이 필요하며 workflow가
+# GH_TOKEN으로 전달한다.
+#
+# 대상 상태: draft PR=In progress, Ready PR=In review, merge 없이 닫힌 PR=Ready.
 
 set -Eeuo pipefail
 export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
-# env 파일 source 전에 workflow가 주입한 token을 보존한다.
-_incoming_gh_token="${GH_TOKEN:-}"
-
-# env 파일 로드 (주로 PROJECT_PAT·AGENT_WS 확보용): 새 경로 우선, 구 경로 fallback
-for _f in "${AGENT_ENV_FILE:-}" \
-          "$HOME/.config/heven-agent/heven-agent.env" \
-          "$HOME/.config/heven-common-test-agent/heven-common-test.env"; do
-  if [[ -n "$_f" && -f "$_f" ]]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "$_f"
-    set +a
-    break
-  fi
-done
-
-: "${AGENT_WS:=${HEVEN_COMMON_TEST_WS:-$HOME/heven_common_test_ws}}"
-
-# Authentication precedence: incoming workflow token, env PROJECT_PAT, ambient gh.
-if [[ -n "$_incoming_gh_token" ]]; then
-  export GH_TOKEN="$_incoming_gh_token"
-elif [[ -n "${PROJECT_PAT:-}" ]]; then
-  export GH_TOKEN="$PROJECT_PAT"
-else
-  unset GH_TOKEN
-fi
-unset _incoming_gh_token
-
-# repo: Actions 컨텍스트가 정본 (org 공용 runner의 env 파일이 다른 repo를
-# 가리켜도 오발사하지 않도록 GITHUB_REPOSITORY 우선). 하드코딩 fallback 없음.
-if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then GH_REPO="$GITHUB_REPOSITORY"; fi
-: "${GH_REPO:?GH_REPO missing — env 파일 또는 GITHUB_REPOSITORY}"
+GH_REPO="${GITHUB_REPOSITORY:-${GH_REPO:-}}"
+: "${GH_REPO:?GITHUB_REPOSITORY 또는 GH_REPO 필요}"
 GH_OWNER="${GH_REPO%%/*}"
 REPO_NAME="${GH_REPO#*/}"
 
 PR="${1:?usage: pr-set-in-review.sh <PR_NUMBER>}"
 
-LOG="$AGENT_WS/runner/logs/project-status.log"
+LOG="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/project-status-$PR.log"
 mkdir -p "$(dirname "$LOG")"
 log() { printf '[%s] [pr-%s] %s\n' "$(date '+%F %T %Z')" "$PR" "$*" | tee -a "$LOG"; }
 
-# 두 번째 인자는 recursive reconciliation 전용이다. env 파일을 source한 뒤에도
-# pass counter가 되감기지 않도록 workflow/public 호출은 기존처럼 PR 인자만 쓴다.
+# 두 번째 인자는 recursive reconciliation 전용이다. workflow는 PR 인자만 쓴다.
 RECONCILE_DEPTH="${2:-0}"
 if [[ ! "$RECONCILE_DEPTH" =~ ^[0-9]+$ ]]; then
   log "WARN: invalid reconcile depth ($RECONCILE_DEPTH)"
@@ -142,9 +106,8 @@ query_issue_snapshot() {
 
 log "=== reconcile project Status start (repo=$GH_REPO, pass=$RECONCILE_DEPTH) ==="
 
-# 1) PR과 closing issue의 현재 상태를 한 번에 읽는다. 닫힌 PR/issue에서 늦게
-# 도착한 workflow run은 성공 no-op이고, 열린 PR의 누락/불완전 응답은 실패다.
-# gh 내장 --jq(gojq)만 쓴다 — runner 컨텍스트엔 standalone jq가 없다.
+# 1) PR과 closing issue의 현재 상태를 한 번에 읽는다. merge된 PR에서 늦게 도착한
+# workflow run은 성공 no-op이고, 누락/불완전 응답은 실패다.
 if ! PR_RESULT=$(query_pr_snapshot); then
   log "WARN: PR 및 linked issue 조회 실패"
   exit 1
@@ -177,22 +140,23 @@ while IFS=$'\t' read -r record value1 value2 value3 value4; do
 done <<< "$PR_RESULT"
 
 case "$PR_STATE" in
-  CLOSED|MERGED)
+  MERGED)
     log "PR #$PR state=$PR_STATE: stale workflow no-op"
     exit 0
     ;;
-  OPEN) ;;
+  CLOSED) INITIAL_TARGET_STATUS='Ready' ;;
+  OPEN)
+    case "$PR_IS_DRAFT" in
+      true) INITIAL_TARGET_STATUS='In progress' ;;
+      false) INITIAL_TARGET_STATUS='In review' ;;
+      *)
+        log "WARN: PR #$PR isDraft 응답 불완전 ($PR_IS_DRAFT)"
+        exit 1
+        ;;
+    esac
+    ;;
   *)
     log "WARN: PR #$PR state 응답 불완전 ($PR_STATE)"
-    exit 1
-    ;;
-esac
-
-case "$PR_IS_DRAFT" in
-  true) INITIAL_TARGET_STATUS='In progress' ;;
-  false) INITIAL_TARGET_STATUS='In review' ;;
-  *)
-    log "WARN: PR #$PR isDraft 응답 불완전 ($PR_IS_DRAFT)"
     exit 1
     ;;
 esac
@@ -211,8 +175,8 @@ case "$CLOSING_HAS_NEXT" in
 esac
 
 if [[ ${#ISSUE_IDS[@]} -eq 0 ]]; then
-  log "WARN: linked issue 없음 (열린 PR 본문에 Resolves #N 필요)"
-  exit 1
+  log "WARN: linked issue 없음 (PR 본문에 Resolves #N 필요). 상태 변경 없이 종료."
+  exit 0
 fi
 
 # 닫힌 issue는 그 item만 terminal no-op으로 표시한다. 다른 열린 issue는 계속
@@ -248,6 +212,7 @@ UPDATE_PROJECT_NUMBERS=()
 UPDATE_FIELD_IDS=()
 UPDATE_OPTION_IN_REVIEW_IDS=()
 UPDATE_OPTION_IN_PROGRESS_IDS=()
+UPDATE_OPTION_READY_IDS=()
 UPDATE_CURRENT_STATUSES=()
 UPDATE_ELIGIBLE=()
 
@@ -349,6 +314,10 @@ for index in "${!ISSUE_IDS[@]}"; do
       continue
       ;;
   esac
+  if [[ "$INITIAL_TARGET_STATUS" == Ready && "$ITEM_STATUS" != 'In progress' && "$ITEM_STATUS" != 'In review' ]]; then
+    log "issue #$ISSUE_NO Status=$ITEM_STATUS: 닫힌 PR 복귀 대상 아님"
+    continue
+  fi
 
   if ! FIELD_RESULT=$(gh api graphql -f query="
     query {
@@ -365,7 +334,7 @@ for index in "${!ISSUE_IDS[@]}"; do
     if $field != null then
       (["FIELD", ($field.id // "MISSING")] | @tsv),
       ($field.options[]? |
-        select(.name == "In review" or .name == "In progress") |
+        select(.name == "In review" or .name == "In progress" or .name == "Ready") |
         ["OPTION", (.name // "MISSING"), (.id // "MISSING")] | @tsv)
     else empty end
   ' 2>>"$LOG"); then
@@ -384,6 +353,7 @@ for index in "${!ISSUE_IDS[@]}"; do
         case "$value1" in
           'In review') OPTION_IN_REVIEW_IDS+=("$value2") ;;
           'In progress') OPTION_IN_PROGRESS_IDS+=("$value2") ;;
+          'Ready') OPTION_READY_IDS+=("$value2") ;;
           *)
             log "WARN: Project #$PROJECT_NO Status option 응답 해석 실패 ($value1)"
             exit 1
@@ -420,6 +390,7 @@ for index in "${!ISSUE_IDS[@]}"; do
   UPDATE_FIELD_IDS+=("${FIELD_IDS[0]}")
   UPDATE_OPTION_IN_REVIEW_IDS+=("${OPTION_IN_REVIEW_IDS[0]}")
   UPDATE_OPTION_IN_PROGRESS_IDS+=("${OPTION_IN_PROGRESS_IDS[0]}")
+  UPDATE_OPTION_READY_IDS+=("${OPTION_READY_IDS[0]:-}")
   UPDATE_CURRENT_STATUSES+=("$ITEM_STATUS")
   UPDATE_ELIGIBLE+=(1)
   log "issue #$ISSUE_NO Project #$PROJECT_NO Status=$ITEM_STATUS: preflight 완료"
@@ -561,22 +532,23 @@ while IFS=$'\t' read -r record value1 value2 value3 value4; do
 done <<< "$FINAL_PR_RESULT"
 
 case "$FINAL_PR_STATE" in
-  CLOSED|MERGED)
+  MERGED)
     log "PR #$PR final state=$FINAL_PR_STATE: stale workflow no-op"
     exit 0
     ;;
-  OPEN) ;;
+  CLOSED) TARGET_STATUS='Ready' ;;
+  OPEN)
+    case "$FINAL_PR_IS_DRAFT" in
+      true) TARGET_STATUS='In progress' ;;
+      false) TARGET_STATUS='In review' ;;
+      *)
+        log "WARN: PR #$PR final isDraft 응답 불완전 ($FINAL_PR_IS_DRAFT)"
+        exit 1
+        ;;
+    esac
+    ;;
   *)
     log "WARN: PR #$PR final state 응답 불완전 ($FINAL_PR_STATE)"
-    exit 1
-    ;;
-esac
-
-case "$FINAL_PR_IS_DRAFT" in
-  true) TARGET_STATUS='In progress' ;;
-  false) TARGET_STATUS='In review' ;;
-  *)
-    log "WARN: PR #$PR final isDraft 응답 불완전 ($FINAL_PR_IS_DRAFT)"
     exit 1
     ;;
 esac
@@ -636,13 +608,17 @@ for final_index in "${!FINAL_ISSUE_IDS[@]}"; do
   esac
 done
 
-# 최종 live draft 상태가 target의 정본이다. 같은 target은 idempotent no-op이고,
+# 최종 live PR 상태가 target의 정본이다. 같은 target은 idempotent no-op이고,
 # Done/closed는 위에서 terminal로 제외되었다.
 for index in "${!UPDATE_ITEM_IDS[@]}"; do
   [[ "${UPDATE_ELIGIBLE[$index]}" -eq 1 ]] || continue
   if [[ "${UPDATE_CURRENT_STATUSES[$index]}" == "$TARGET_STATUS" ]]; then
     UPDATE_ELIGIBLE[$index]=0
     log "issue #${UPDATE_ISSUE_NUMBERS[$index]} final Status=$TARGET_STATUS: per-item idempotent no-op"
+  elif [[ "$TARGET_STATUS" == Ready && "${UPDATE_CURRENT_STATUSES[$index]}" != 'In progress' &&
+          "${UPDATE_CURRENT_STATUSES[$index]}" != 'In review' ]]; then
+    UPDATE_ELIGIBLE[$index]=0
+    log "issue #${UPDATE_ISSUE_NUMBERS[$index]} final Status=${UPDATE_CURRENT_STATUSES[$index]}: 닫힌 PR 복귀 대상 아님"
   fi
 done
 
@@ -658,10 +634,15 @@ for index in "${!UPDATE_ITEM_IDS[@]}"; do
   case "$TARGET_STATUS" in
     'In review') STATUS_OPTION_ID="${UPDATE_OPTION_IN_REVIEW_IDS[$index]}" ;;
     'In progress') STATUS_OPTION_ID="${UPDATE_OPTION_IN_PROGRESS_IDS[$index]}" ;;
+    'Ready') STATUS_OPTION_ID="${UPDATE_OPTION_READY_IDS[$index]}" ;;
   esac
 
-  # raw graphql mutation을 씀 (gh project CLI는 read:org scope를 요구하지만
-  # 이건 project scope만으로 동작 -> PROJECT_PAT을 최소권한으로 유지)
+  if [[ -z "$STATUS_OPTION_ID" ]]; then
+    log "WARN: Project #${UPDATE_PROJECT_NUMBERS[$index]}에 '$TARGET_STATUS' 옵션 없음"
+    FAILURES=$((FAILURES + 1))
+    continue
+  fi
+
   if gh api graphql -f query="
     mutation {
       updateProjectV2ItemFieldValue(input: {

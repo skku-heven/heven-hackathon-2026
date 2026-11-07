@@ -1,35 +1,22 @@
-# HEVEN skill workflow
+# 저장소 워크플로우
 
-`bootstrap-repo` → `idea-to-requirements` → `requirements-to-issues` → `issue-worker`
+기본 흐름은 [README](../README.md#작업-흐름)를 따른다. 이 문서에는 저장소별 선택을 기록한다.
 
-- Bootstrap: configure GitHub and required Project status automation; choose repo Notion/Discord settings for the derived repo.
-- Idea to requirements: upstream grilling + domain modeling, with StrictDoc output.
-- Requirements to issues: upstream to-tickets, including dependency ordering, adapted to our Project.
-- Issue worker: existing Ready issue → branch → draft PR → implementation/verification workflow.
+## 저장소별 선택
 
-## Per-repository choices
+bootstrap 때 기록하고, 선택을 바꾸면 함께 고친다. 답하지 않은 항목을 OFF로 추정하지 않는다.
 
-A derived repo records its choices here during bootstrap or first requirements session:
+- StrictDoc: OFF (요구사항 정본은 heven-hackathon-2026-dev). `heven.toml`이 기준이다.
+- 저장소 전용 Notion: OFF. 공통 Notion 가이드는 항상 유지한다.
+- Discord 알림 / 멘션: OFF / OFF
+- Codex PR 리뷰: OFF
+- runner 머신: heven-right
+- Project 상태 전환: 항상 사용 (self-hosted runner + `PROJECT_PAT`)
 
-- StrictDoc: OFF (participant distribution); `heven.toml` is the machine-readable source.
-- Requirement levels: not used; canonical requirements belong to heven-hackathon-2026-dev.
-- Requirement source: docs/requirements/*.sdoc (StrictDoc).
-- Issue tracker: this repository's GitHub Issues and linked Project.
-- Repository Notion hub: disabled.
-- Discord notifications / mentions: disabled / disabled.
-- Codex PR review: disabled.
-- Project status automation: required (self-hosted runner + PROJECT_PAT + RUNNER_SCRIPTS).
-- Common Notion guides: retained regardless of repository hub choice.
+## 원본과의 차이
 
-Do not infer disabled from an unanswered choice. Existing explicit user choices carry forward.
-For example, a software-focused project can select stakeholder + software and disable the optional integrations. Record actual choices in each derived repository; this example is not a team-wide default. A participant distribution repo need not duplicate the development requirements.
+원본 스킬의 고정 커밋은 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)에 있다. 원본 파일은 수정하지 않고, HEVEN 규칙은 [이슈 트래커 설정](agents/issue-tracker.md)과 래퍼 스킬에 둔다.
 
-## Boundaries
-
-The source skills are pinned in THIRD_PARTY_NOTICES.md. The HEVEN additions are limited to selected requirement levels/StrictDoc output and the existing GitHub/integration contracts.
-ISO/IEC/IEEE 29148 inspires requirement organization; selecting levels is project tailoring, not a claim of full standards conformance.
-`to-spec` is not a separate stage: StrictDoc is the specification. `triage` is not installed: its labels/state machine would duplicate our Project. `to-tickets` already declares blockers.
-
-Use `handoff` explicitly when moving to another session/agent. It is independent of the development stages and writes to the OS temporary directory, not this repository.
-
-Use `teach` explicitly for guided learning in a chosen teaching directory. `process-improvement` is a [usable, incomplete draft](../.claude/skills/process-improvement/SKILL.md), primarily informed by Atlassian retrospectives, for questioning and shared improvements to heven-common.
+- `to-spec`은 쓰지 않는다. 명세는 StrictDoc ON 저장소의 `.sdoc`이거나 이슈 본문이다.
+- `triage`는 쓰지 않는다. GitHub Project 상태가 그 역할을 한다.
+- ISO/IEC/IEEE 29148은 참고만 하며 표준 준수를 주장하지 않는다.

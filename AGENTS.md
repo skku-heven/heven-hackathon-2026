@@ -8,7 +8,8 @@
 |---|---|
 | README.md | repo 목적과 setup/build/run/test |
 | AGENTS.md | 에이전트 작업 규칙 |
-| GitHub Issue / Project / PR / Milestone | 작업 명세·상태·일정·결정 기록 |
+| GitHub Issue / Project / PR / Milestone | 작업 내용·상태·일정·결정 기록 |
+| `docs/requirements/*.sdoc` | 요구사항 (StrictDoc ON 저장소만) |
 | 공통 Notion 가이드 | 공통 workflow·convention |
 | repo별 Notion hub | domain·대회·hardware·환경·제약 |
 
@@ -39,12 +40,14 @@
 
 ## Skills
 
-- 반복 작업은 `.claude/skills/<name>/SKILL.md`를 먼저 읽고 따른다.
-- 새 repository 설정은 `bootstrap-repo`, Ready Issue 시작은 `issue-worker`를 사용한다.
-- runner 운영은 [ops/runner/README.md](ops/runner/README.md)를 따른다.
+- 반복 작업은 `.claude/skills/<name>/SKILL.md`를 먼저 읽고 따른다. 스킬 안의 "Skill tool" 호출은, 그 도구가 없으면 해당 스킬 파일을 읽어 수행한다.
+- 새 저장소 설정은 `bootstrap-repo`, Ready 이슈 시작은 `issue-worker`를 사용한다.
+- StrictDoc ON 저장소의 요구사항 작업은 `idea-to-requirements`, `requirements-to-issues`를 명시적으로 호출한다. OFF 저장소에서는 사용하지 않는다.
+- `grill-me`, `to-tickets`, `handoff`, `teach`, `process-improvement`는 명시적으로 요청했을 때 사용한다.
+- 저장소별 선택은 [docs/workflow.md](docs/workflow.md), runner 운영은 [ops/runner/README.md](ops/runner/README.md)를 따른다.
 
-요구사항 협의는 `idea-to-requirements`, 검토된 요구사항의 작업 분할은 `requirements-to-issues`를 사용한다. [단계와 저장소별 선택](docs/workflow.md)을 따른다.
+## Agent skills
 
-- 세션 인수인계 문서는 `.claude/skills/handoff/SKILL.md`를 명시적으로 요청했을 때 사용한다.
+### Issue tracker
 
-- 학습은 명시적 요청 시 `.claude/skills/teach/SKILL.md`를 사용한다. 회고와 공통 프로세스 개선은 `.claude/skills/process-improvement/SKILL.md`를 사용한다. 현재 미완성 초안이다.
+GitHub Issues와 연결된 Project를 사용한다. See `docs/agents/issue-tracker.md`.

@@ -1,4 +1,8 @@
+[template]
+# 이 저장소의 기준이 되는 heven-common 커밋. bootstrap과 템플릿 반영 때 갱신한다.
+commit = "e693e56d20ac24024986fe608ab23499f7718afc"
+
 [requirements]
 enabled = false
-# software | stakeholder-software | system-software | stakeholder-system-software | full
-profile = "stakeholder-software"
+# enabled = true일 때 business, stakeholder, system, software, hardware 중 선택
+levels = []

@@ -1,16 +1,21 @@
 ---
 name: requirements-to-issues
-description: Split reviewed requirements into GitHub implementation issues with acceptance criteria and blocking dependencies, ready for the HEVEN issue-worker workflow.
+description: StrictDoc ON 저장소에서 검토한 요구사항을 합격 기준과 선후관계가 있는 GitHub 이슈로 나눈다. 명시적으로 호출한다.
+disable-model-invocation: true
 ---
 
 # Requirements → Issues
 
-Read [upstream to-tickets](references/to-tickets.md) and follow its slicing, dependency analysis and breakdown review. The following are the HEVEN substitutions; do not introduce another tracker or triage state machine.
+## 먼저 확인
 
-1. Read `docs/workflow.md`, the selected StrictDoc requirements, existing issues and Project state. Use requirement UIDs as references; the issue is an implementation task, not a replacement specification. If a required choice is unresolved, return that question to `idea-to-requirements` instead of guessing it.
-2. Draft independently verifiable vertical slices and their genuine blocking edges, as upstream does. Check existing issues before proposing duplicates. Show title, requirement IDs, outcome, acceptance criteria and blockers for each proposed issue. Review the breakdown with the user as upstream requests.
-3. When StrictDoc is ON, run `make requirements-check` and use the managed UID block in `docs/requirements-workflow.md`. Zero UIDs are allowed; unknown UIDs are errors. Issue bodies own the links; do not add reverse Issue references to requirement COMMENT fields. Publish the approved breakdown to this repo's GitHub Issues, blockers first. Use the repo's existing Issue Type/template. Each issue links the exact requirements document revision and UIDs, and names its verification outcome. Prefer native blocking relationships where available; otherwise retain a readable `Blocked by: #...` list. Reject circular dependencies.
-4. Use the existing Project: Backlog → Ready → In progress → In review → Done. Do not create upstream `ready-for-agent` or triage labels. New issues start in Backlog under the existing project workflow; identify which have no unfinished blockers. Move them to Ready only when the user authorizes that transition. Preserve existing parent issue state.
-5. Verify the created Issue bodies and run `make requirements-sync` (dry-run). PR UID blocks are synchronized by the trusted-base workflow after linking with `Resolves #N`; closed Issue links remain valid. Hand off one Ready issue number to `issue-worker`. That skill owns branch/draft-PR claiming. Do not create branches or PRs here.
+`heven.toml`을 읽는다. `requirements.enabled`가 `false`이면 "이 저장소는 StrictDoc OFF입니다. 이슈를 직접 만들거나 필요하면 `to-tickets`를 사용하세요"라고 알리고 끝낸다.
 
-Dependencies are already part of `to-tickets`; no separate sequencing skill is required. Requirements, UIDs and verification links remain in StrictDoc. Optional Notion/Discord integrations use existing repo settings, not additional copies of the specification.
+## 진행
+
+1. [to-tickets](../to-tickets/SKILL.md)와 [이슈 트래커 설정](../../../docs/agents/issue-tracker.md)을 읽고 그 절차로 나눈다. 두 내용이 다르면 트래커 설정이 우선한다.
+2. 요구사항, 기존 이슈, Project 상태를 읽는다. 미정 항목이 있으면 임의로 정하지 않고 `idea-to-requirements`로 돌린다. `Draft` 요구사항을 이슈로 나눌 때는 사용자에게 확인한다. 기능을 유지만 하는 요구사항은 검증 이슈로, 수정·신규는 구현과 검증 이슈로 만든다.
+3. 이슈별 제목, UID, 결과, 합격 기준, 선행 이슈를 보여 주고 승인을 받는다.
+4. `make requirements-check`를 실행한 뒤 이슈를 만들고, 본문에 `docs/requirements-workflow.md`의 UID 블록을 넣는다. UID가 없는 이슈도 허용한다.
+5. `make requirements-sync`로 변경 사항을 확인한다. 시작 가능한 이슈를 알려 주되, 브랜치와 PR은 만들지 않는다. 다음 단계는 `issue-worker`다.
+
+요구사항 본문은 StrictDoc에 두고, 이슈에는 UID와 구현 작업만 적는다.

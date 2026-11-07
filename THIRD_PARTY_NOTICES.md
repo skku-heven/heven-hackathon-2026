@@ -1,13 +1,11 @@
 # Matt Pocock skills
 
-idea-to-requirements adapts grill-with-docs + grill-me + grilling + domain-modeling.
-teach is copied unchanged from skills/productivity/teach, including its formats and explicit-only invocation metadata.
-handoff is copied unchanged from skills/productivity/handoff (including explicit-only invocation metadata).
-requirements-to-issues adapts to-tickets. Reference files preserve upstream text.
+Copied unchanged, including formats and invocation metadata: grilling, grill-me, domain-modeling, to-tickets, handoff, teach.
+idea-to-requirements adapts grill-with-docs. requirements-to-issues wraps to-tickets. docs/agents/issue-tracker.md adapts the GitHub template of setup-matt-pocock-skills. process-improvement adapts part of retro.
 Source: https://github.com/mattpocock/skills/tree/4ae2317ddb22b046e26455e4f9c9b3aaaf62212d
 Pinned commit: 4ae2317ddb22b046e26455e4f9c9b3aaaf62212d
 
-HEVEN adaptations: StrictDoc output and optional requirement levels; existing GitHub Project / issue-worker handoff; optional Notion/Discord. No separate triage state machine added.
+HEVEN adaptations: StrictDoc output and selectable requirement levels; GitHub Project states and issue-worker; Blocked by as the only dependency record.
 
 MIT License
 

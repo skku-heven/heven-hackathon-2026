@@ -167,6 +167,31 @@ require_single_ready_project_item() {
   info "Project #$project_no '$project_title': Ready 확인"
 }
 
+require_no_open_blockers() {
+  local owner="$1" repo_name="$2" issue="$3" blocked_json open_blockers
+
+  blocked_json=$(gh api graphql -f query='
+    query($o:String!,$r:String!,$n:Int!){
+      repository(owner:$o,name:$r){
+        issue(number:$n){
+          blockedBy(first:100){
+            pageInfo{ hasNextPage }
+            nodes{ number state }
+          }
+        }
+      }
+    }' -F o="$owner" -F r="$repo_name" -F n="$issue" \
+    --jq '.data.repository.issue.blockedBy') \
+    || die "선행 이슈(Blocked by) 조회 실패. 확인할 수 없어 중단."
+  [[ "$(jq -r '.pageInfo.hasNextPage' <<< "$blocked_json")" == false ]] \
+    || die "선행 이슈 목록 pagination 감지. 전체를 확인할 수 없어 중단."
+  open_blockers=$(jq -r '[.nodes[] | select(.state == "OPEN") | "#\(.number)"] | join(", ")' \
+    <<< "$blocked_json") || die "선행 이슈 응답 해석 실패."
+  [[ -z "$open_blockers" ]] \
+    || die "issue #$issue 는 선행 이슈가 열려 있어 시작할 수 없음: $open_blockers"
+  info "선행 이슈 확인 완료"
+}
+
 # --- Issue Type -> conventional type (branch prefix + PR title) ---
 OWNER="${REPO%%/*}"; NAME="${REPO##*/}"
 ITYPE=$(gh api graphql -f query='
@@ -227,6 +252,7 @@ if [[ "$CONFLICT_COUNT" -gt 0 ]]; then
 fi
 
 require_single_ready_project_item "$OWNER" "$NAME" "$ISSUE"
+require_no_open_blockers "$OWNER" "$NAME" "$ISSUE"
 
 # --- create/recover issue branch after read-only preflight ---
 info "origin/$BASE와 선택된 branch 최신화"
@@ -257,8 +283,12 @@ info "origin/$BRANCH push..."
 git push -u origin "$BRANCH" --quiet
 
 # --- draft PR (Resolves #N drives Status -> In progress) ---
-# .github/pull_request_template.md 와 동일한 섹션 구조
-PR_BODY=$(printf '## 무엇을 했나요 (What)\n\n(작업하면서 채워주세요. commit을 push하면 이 draft PR에 자동 반영됩니다.)\n\n## 왜 (Why)\n\n## 검증 (Verified)\n\n## 참고/기타\n\nResolves #%s\n' "$ISSUE")
+PR_TEMPLATE="$(git rev-parse --show-toplevel)/.github/pull_request_template.md"
+if [[ -f "$PR_TEMPLATE" ]] && grep -qx 'Resolves #' "$PR_TEMPLATE"; then
+  PR_BODY=$(sed "s/^Resolves #\$/Resolves #$ISSUE/" "$PR_TEMPLATE")
+else
+  PR_BODY="Resolves #$ISSUE"
+fi
 if ! PR_URL=$(gh pr create -R "$REPO" --base "$BASE" --head "$BRANCH" --draft \
   --title "$TYPE: $TITLE (#$ISSUE)" --body "$PR_BODY"); then
   die "draft PR 생성 실패. push된 branch는 다음 실행에서 복구됨: $BRANCH"

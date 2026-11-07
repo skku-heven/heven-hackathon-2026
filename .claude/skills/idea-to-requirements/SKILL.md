@@ -1,23 +1,22 @@
 ---
 name: idea-to-requirements
-description: Turn an idea or existing discussion into requirements through a questioning session, recording selected requirement levels in StrictDoc. Use before implementation or when revising requirements.
+description: StrictDoc ON 저장소에서 질문을 통해 아이디어를 구체화하고 선택한 요구사항 계층에 기록한다. 구현 전이나 요구사항을 고칠 때 명시적으로 호출한다.
+disable-model-invocation: true
 ---
 
 # Idea → Requirements
 
-HEVEN adaptation of `grill-with-docs` and [grill-me](references/grill-me.md) (the latter is an entrypoint for `grilling`): use the interview in [grilling](references/grilling.md) and the terminology/decision work in [domain-modeling](references/domain-modeling.md). Read both before starting. The reference files describe the discipline; execute it here rather than requiring separately installed skills or a particular Skill tool.
+원본 `grill-with-docs`에 StrictDoc 기록을 더한 HEVEN 스킬이다.
 
-## HEVEN integration
+## 먼저 확인
 
-Run this skill only when explicitly requested.
+`heven.toml`을 읽는다. `requirements.enabled`가 `false`이면 "이 저장소는 StrictDoc OFF입니다"라고 알리고 끝낸다. 파일을 만들거나 설정을 바꾸지 않는다. 사용자가 직접 요청할 때만 `enabled`와 `levels`를 바꾸고 `make requirements-init`을 실행한다.
 
-1. Read the repo's `docs/workflow.md` settings and existing discussion, requirements, glossary and relevant code. If requirement levels have not been selected, ask which of business, stakeholder, system and software to use. Record that choice once; do not silently add omitted levels.
-2. Run the upstream interview: ask the currently answerable questions in numbered rounds with recommendations, investigate facts in the repo, and wait for decisions before dependent questions. Use available tools to investigate; delegation is optional, not a new dependency.
-Continue rounds until every decision branch in the agreed scope is resolved and the user confirms shared understanding. Do not stop merely because a first requirements draft exists. If the user pauses or defers a decision, record it as unresolved rather than inventing an answer.
+## 진행
 
-3. Enable the selected profile in `heven.toml` and run `make requirements-init` before writing. A profile change requires reviewing existing files with the user; never overwrite them. Keep the upstream glossary and selective ADR behavior. In addition, write settled requirements into `docs/requirements/*.sdoc` using [the requirements profile](references/requirements-profile.md). Existing UIDs and formats take precedence. Leave unresolved choices explicit; do not invent answers to finish a document.
-4. Run `make requirements-check`; inspect `build/requirements-report.json`. Keep all new requirements Draft until explicit review/approval. Show the changed requirements and unresolved choices. Confirm shared understanding as in the upstream interview. This session writes requirements, not product implementation or GitHub issues.
+1. `docs/workflow.md`, 기존 요구사항, 용어집, 관련 코드를 읽는다. 기존 코드를 확장하는 경우 기능별로 유지·수정·신규·제외를 구분한다.
+2. [grilling](../grilling/SKILL.md)으로 인터뷰하고 [domain-modeling](../domain-modeling/SKILL.md)으로 용어와 결정을 기록한다. 두 파일을 읽어 그대로 따른다.
+3. 결정된 내용을 [요구사항 프로필](references/requirements-profile.md)에 맞춰 `docs/requirements/<level>.sdoc`에 Draft로 쓴다. 기존 UID는 유지한다. 답을 받지 못한 항목은 지어내지 않고 미정으로 남긴다.
+4. `make requirements-check`를 실행하고, 변경한 요구사항과 미정 항목을 보여 준다.
 
-Notion, when enabled, supplies repo context; StrictDoc remains the requirement source of truth. When disabled, use repo files without asking for a Notion connection. Discord and runner behavior stays in the existing workflows.
-
-Next: use `requirements-to-issues` for the reviewed scope. Do not automatically invoke the next stage.
+이 스킬에서는 제품 구현과 GitHub 이슈 생성을 하지 않는다. 다음 단계는 `requirements-to-issues`이며 자동으로 호출하지 않는다.

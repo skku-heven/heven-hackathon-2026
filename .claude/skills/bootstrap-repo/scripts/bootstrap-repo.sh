@@ -7,9 +7,8 @@
 # template이 복사해주지 않는 것들을 API로 채운다:
 #   - main 브랜치 (template은 default 브랜치=dev만 복사)
 #   - repo 설정 (default=dev, Wiki 비활성화, squash option, 머지 후 브랜치 삭제)
-#   - agent-* 라벨 3종 (agent-proposed / agent-stale / agent-keep)
 #   - 명시적으로 enabled인 기능의 secret/variable
-#   - 필수 Project 상태 전환 설정 (PROJECT_PAT, RUNNER_SCRIPTS)
+#   - 필수 Project 상태 전환 secret (PROJECT_PAT)
 #   - org Project #14를 <repo> Roadmap으로 복사/재사용하고 repo에 연결
 #
 # 복사된 Project의 Auto-add workflow만 GitHub UI에서 설정해야 한다.
@@ -21,6 +20,7 @@
 #
 # env:
 #   REPO_PURPOSE — repo 목적 한 줄
+#   NOTION_MODE — enabled 또는 disabled (생략 시 disabled)
 #   NOTION_REPO_URL — Notion MCP readback 후 README/AGENTS/runner context에 기록된 repo hub URL
 #   NOTION_PROJECT_INFO_URL — 같은 MCP readback으로 확인한 Project Info direct-child URL
 #   CODEX_REVIEW — enabled 또는 disabled (생략 시 disabled)
@@ -29,7 +29,6 @@
 #   DISCORD_WEBHOOK — notifications enabled일 때 필수 secret
 #   DISCORD_USER_MAP — mentions enabled일 때 필수 repo variable
 #   PROJECT_PAT — Project 상태 전환에 필수 secret (scope: project + repo)
-#   RUNNER_SCRIPTS — Project 상태 전환에 필수 repo variable
 #
 # 멱등: 여러 번 돌려도 이미 된 건 skip한다.
 
@@ -116,7 +115,7 @@ document_has_repo_hub_field() {
 }
 
 if ((PREFLIGHT_ONLY == 0)); then
-  NOTION_MODE="${NOTION_MODE:-enabled}" # compatibility for existing enabled callers
+  NOTION_MODE="${NOTION_MODE:-disabled}"
   require_mode NOTION_MODE
   CODEX_REVIEW="${CODEX_REVIEW:-disabled}"
   require_mode CODEX_REVIEW
@@ -184,7 +183,6 @@ if ((PREFLIGHT_ONLY == 0)); then
   fi
 
   require_value PROJECT_PAT
-  require_value RUNNER_SCRIPTS
 
   if [[ "$NOTION_MODE" == enabled ]]; then
     for notion_doc in README.md AGENTS.md ops/runner/repo-context.sh; do
@@ -559,21 +557,7 @@ gh api "repos/$REPO" -X PATCH \
   -F has_wiki=false >/dev/null
 ok "설정: default=dev, Wiki 비활성화, squash option, merge/rebase 유지, 머지 후 브랜치 삭제"
 
-# 3. agent-* 라벨 3종 (planner/stale 자동정리 흐름)
-mklabel() {  # <name> <color> <desc>
-  if gh label list -R "$REPO" --search "$1" --json name --jq '.[].name' 2>/dev/null | grep -qx "$1"; then
-    skip "라벨 $1 이미 있음"
-  elif gh label create "$1" -R "$REPO" --color "$2" --description "$3" >/dev/null 2>&1; then
-    ok "라벨 $1 생성"
-  else
-    warn "라벨 $1 생성 실패 (권한 확인)"
-  fi
-}
-mklabel agent-proposed C5DEF5 "planner가 자동 생성한 이슈"
-mklabel agent-stale    EDEDED "오래 방치됨 — 곧 자동 close"
-mklabel agent-keep     0E8A16 "자동 close 면제 (보관)"
-
-# 4. enabled 기능의 secret
+# 3. enabled 기능의 secret
 if [[ -n "${PROJECT_PAT:-}" ]]; then
   if printf '%s' "$PROJECT_PAT" \
       | gh secret set PROJECT_PAT -R "$REPO" >/dev/null 2>&1; then
@@ -595,7 +579,7 @@ else
   skip "Discord 알림 OFF"
 fi
 
-# 5. 기능 mode에 따른 repo variable
+# 4. 기능 mode에 따른 repo variable
 if [[ -n "${DISCORD_USER_MAP:-}" ]]; then
   if gh variable set DISCORD_USER_MAP -R "$REPO" \
       --body "$DISCORD_USER_MAP" >/dev/null 2>&1; then
@@ -625,14 +609,7 @@ set_mode_variable ENABLE_DISCORD_NOTIFICATIONS "$DISCORD_NOTIFICATIONS"
 set_mode_variable ENABLE_DISCORD_MENTIONS "$DISCORD_MENTIONS"
 set_mode_variable ENABLE_CODEX_REVIEW "$CODEX_REVIEW"
 
-if gh variable set RUNNER_SCRIPTS -R "$REPO" \
-      --body "$RUNNER_SCRIPTS" >/dev/null 2>&1; then
-    ok "repo variable RUNNER_SCRIPTS"
-  else
-    warn "repo variable RUNNER_SCRIPTS 설정 실패 (권한·경로 확인)"
-fi
-
-# 6. Project #14를 repo별 Roadmap으로 복사/재사용하고 target repo에 연결한다.
+# 5. Project #14를 repo별 Roadmap으로 복사/재사용하고 target repo에 연결한다.
 if [[ -n "$TARGET_PROJECT_NUMBER" ]]; then
   skip "Project '$TARGET_PROJECT_TITLE' (#$TARGET_PROJECT_NUMBER) 이미 있음"
 else
@@ -673,17 +650,23 @@ cat <<'EOF'
    - 나머지 Status와 workflow는 Project #14 template에서 자동 복사됨
    - 의도한 팀원이 private repo와 Project 모두에 접근 가능한지 확인
 2. README/CI 구성:
-   - repo README의 목적·환경·빌드·실행·검증 내용과 .github/workflows/ci.yml을 실제 값으로 교체
+   - repo README의 목적·환경·빌드·실행·검증 내용을 실제 값으로 교체하고, 빌드·테스트 CI를 추가
 EOF
 cat <<'EOF'
 3. self-hosted 자동화 runner access와 배포:
    - bootstrap이 선택한 mode에 맞춰 쓴 repo variables/secrets의 이름과 존재 여부 확인
    - org runner group의 public repository access는 항상 차단
    - organization plan이 Selected repositories를 지원하면 이 private repo만 허용
-   - ops/runner/README.md에 따라 runner script를 배포
 EOF
+RUNNER_ONLINE=$(gh api "repos/$REPO/actions/runners" \
+  --jq '[.runners[] | select(.status == "online")] | length' 2>/dev/null || echo 0)
+if [[ "$RUNNER_ONLINE" == 0 ]]; then
+  echo "   ⚠ $REPO에 연결된 online runner 없음: 연결 전까지 Project 상태 전환이 대기합니다 (org runner 사용 시 무시)"
+else
+  echo "   ✓ 저장소 runner online ${RUNNER_ONLINE}개"
+fi
 cat <<'EOF'
-자세히: heven-common repo의 README (새 repo bootstrap)
+자세히: heven-common repo의 README (새 저장소 만들기)
 EOF
 echo
 if [[ "$WARNS" -gt 0 ]]; then

@@ -1,6 +1,5 @@
 name: "🧰 운영 / 잡무"
 description: "코드 외 — 환경 설정, 하드웨어 점검, 사무·행정"
-title: "[Chore] "
 type: "Chore"
 body:
   - type: textarea

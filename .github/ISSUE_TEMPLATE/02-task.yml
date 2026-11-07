@@ -1,6 +1,5 @@
 name: "🛠️ 작업"
 description: "할 일"
-title: "[Task] "
 type: "Task"
 body:
   - type: textarea

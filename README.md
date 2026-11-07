@@ -6,7 +6,7 @@ HEVEN 2026 Docker 배포본 기반 참가자 실행 환경·스켈레톤·사용
 
 ## 시작하기
 
-GitHub Issue·PR·Project를 사용한다. 작업은 `bootstrap-repo` → `idea-to-requirements` → `requirements-to-issues` → `issue-worker` 흐름을 따른다. 저장소별 선택과 스킬은 [작업 흐름](docs/workflow.md), [에이전트 규칙](AGENTS.md)을 참고한다.
+GitHub Issue·PR·Project를 사용한다. StrictDoc OFF 저장소라 이슈 → `issue-worker` → Draft PR → 리뷰의 기본 흐름만 사용한다. 저장소별 선택과 스킬은 [작업 흐름](docs/workflow.md), [에이전트 규칙](AGENTS.md)을 참고한다.
 
 ## 배포 경계
 

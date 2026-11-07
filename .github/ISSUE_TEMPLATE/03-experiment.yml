@@ -1,6 +1,5 @@
 name: "🧪 실험 / 튜닝"
 description: "알고리즘 비교, 파라미터 튜닝, 시뮬 검증 기록"
-title: "[Experiment] "
 type: "Experiment"
 body:
   - type: textarea
