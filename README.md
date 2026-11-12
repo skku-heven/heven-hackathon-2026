@@ -11,24 +11,29 @@ HEVEN 2026 Docker 배포본 기반 참가자 실행 환경·스켈레톤·사용
 ./run.sh            # macOS·Ubuntu  (Windows PowerShell: .\run.ps1)
 ```
 
-3. 브라우저에 시뮬레이터 화면 **http://localhost:8080** 이 열립니다. 기본 코드(`hk_drive`)는 작업 폴더 `~/heven2026/ws/src`에 복사됩니다.
+3. 브라우저에 시뮬레이터 화면 **http://localhost:8080** 이 열립니다. 작업 폴더 `~/heven_hackathon_2026`에 기본 코드가 들어갑니다.
+
+```
+~/heven_hackathon_2026/
+├── mit_ws/      MIT 코드 (컨테이너 /mit_ws), 기본 코드 hk_mit
+├── morai_ws/    MORAI 코드 (컨테이너 /morai_ws, 빌드 확인용), 기본 코드 hk_morai
+└── data/        결과·이번 시도 경로 파일 (컨테이너 /data)
+```
 
 | 명령 | 하는 일 |
 |---|---|
-| `./run.sh shell` | 컨테이너 셸(ROS 2 Humble). `cd /ws && colcon build && source install/setup.bash && ros2 launch hk_drive bringup.launch.py` |
+| `./run.sh shell` | 컨테이너 셸(ROS 2 Humble). `cd /mit_ws && colcon build && source install/setup.bash && ros2 launch hk_mit bringup.launch.py` |
 | `./run.sh desktop` | 브라우저 데스크톱 **http://localhost:6080** (RViz·rqt·터미널, 켤 때만 돔) |
 | `./run.sh update` | 새로 올라온 이미지 받기(작업 폴더는 그대로) |
 | `./run.sh stop` | 끄기 |
 
-MORAI 종목의 코스 파일은 [`participant/morai/`](participant/morai/)에 있고, 실행 방법은 안내서 4절에 있습니다.
+Windows에서 스크립트 실행이 막히면 `powershell -ExecutionPolicy Bypass -File .\run.ps1`로 실행합니다.
 
-## 시작하기
-
-GitHub Issue·PR·Project를 사용한다. StrictDoc OFF 저장소라 이슈 → `issue-worker` → Draft PR → 리뷰의 기본 흐름만 사용한다. 저장소별 선택과 스킬은 [작업 흐름](docs/workflow.md), [에이전트 규칙](AGENTS.md)을 참고한다.
+MORAI는 운영진 PC에서 돕니다. 자기 차례에 `morai_ws/src`를 USB로 가져오세요. 코스 파일은 `hk_morai/course/`에 들어 있고, 자세한 방법은 [참가자 안내서](docs/participant-guide.md) 4절에 있습니다.
 
 ## 배포 경계
 
-개발 저장소 [heven-hackathon-2026-dev](https://github.com/skku-heven/heven-hackathon-2026-dev)가 검증한 Docker 이미지(GitHub 패키지)를 사용한다. `run.sh`·`run.ps1`·안내서·MORAI 코스 파일은 개발 저장소의 `deployment/`, `docs/participant-guide.md`, `ops/morai/participant/`에서 복사한다. StrictDoc은 OFF이며 요구사항 정본을 중복 관리하지 않는다.
+개발 저장소 [heven-hackathon-2026-dev](https://github.com/skku-heven/heven-hackathon-2026-dev)가 검증한 Docker 이미지(GitHub 패키지)를 사용한다. `run.sh`·`run.ps1`·안내서는 개발 저장소의 `deployment/`, `docs/participant-guide.md`에서 복사한다. 기본 코드(`hk_mit`, `hk_morai`, MORAI 코스 파일 포함)는 이미지 안에 있고 `run.sh`가 작업 폴더로 복사한다. StrictDoc은 OFF이며 요구사항 정본을 중복 관리하지 않는다.
 
 ## 협업 설정
 

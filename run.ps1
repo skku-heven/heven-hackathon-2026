@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Name = "heven"
 $Image = if ($env:HEVEN_IMAGE) { $env:HEVEN_IMAGE } else { "ghcr.io/skku-heven/heven-hackathon-2026:2026" }
-$HomeDir = if ($env:HEVEN_HOME) { $env:HEVEN_HOME } else { Join-Path $env:USERPROFILE "heven2026" }
+$HomeDir = if ($env:HEVEN_HOME) { $env:HEVEN_HOME } else { Join-Path $env:USERPROFILE "heven_hackathon_2026" }   # mit_ws (/mit_ws), morai_ws (/morai_ws), data (/data)
 $Port = if ($env:HEVEN_PORT) { $env:HEVEN_PORT } else { "8080" }
 $DesktopPort = if ($env:HEVEN_DESKTOP_PORT) { $env:HEVEN_DESKTOP_PORT } else { "6080" }
 
@@ -35,17 +35,21 @@ function Get-Image {
   }
 }
 
-function Prepare-Dirs {
-  New-Item -ItemType Directory -Force -Path (Join-Path $HomeDir "ws\src"), (Join-Path $HomeDir "data") | Out-Null
-  $src = Join-Path $HomeDir "ws\src"
-  if (-not (Get-ChildItem $src -Force | Select-Object -First 1)) {
-    $driveSrc = Join-Path $Here "participant\drive"
-    if (Test-Path $driveSrc) {
-      Copy-Item -Recurse -Force (Join-Path $driveSrc "*") $src
-    } else {                               # the base code inside the image
-      docker run --rm -v "${HomeDir}\ws:/ws" --entrypoint cp $Image -R /opt/heven/src/hk_drive /ws/src/
+function Prepare-Dirs {  # the base code into each empty workspace: hk_mit -> mit_ws, hk_morai -> morai_ws
+  New-Item -ItemType Directory -Force -Path (Join-Path $HomeDir "mit_ws\src"), (Join-Path $HomeDir "morai_ws\src"), (Join-Path $HomeDir "data") | Out-Null
+  foreach ($ws in @("mit", "morai")) {
+    $pkg = "hk_$ws"
+    $wsDir = Join-Path $HomeDir "${ws}_ws"
+    $src = Join-Path $wsDir "src"
+    if (-not (Get-ChildItem $src -Force | Select-Object -First 1)) {
+      $usb = Join-Path $Here "participant\$pkg"
+      if (Test-Path $usb) {
+        Copy-Item -Recurse -Force $usb $src
+      } else {                             # the base code inside the image
+        docker run --rm -v "${wsDir}:/w" --entrypoint cp $Image -R "/opt/heven/src/$pkg" /w/src/
+      }
+      Write-Host "기본 코드 $pkg 를 $src 에 복사했습니다."
     }
-    Write-Host "기본 코드를 $src 에 복사했습니다."
   }
 }
 
@@ -56,11 +60,12 @@ function Start-Sim {
   if (Is-Running) { Write-Host "이미 실행 중입니다." } else {
     docker rm -f $Name *> $null
     docker run -d --name $Name -p "127.0.0.1:${Port}:8080" -p "127.0.0.1:${DesktopPort}:6080" `
-      -v "${HomeDir}\ws:/ws" -v "${HomeDir}\data:/data" $Image | Out-Null
+      -v "${HomeDir}\mit_ws:/mit_ws" -v "${HomeDir}\morai_ws:/morai_ws" -v "${HomeDir}\data:/data" $Image | Out-Null
   }
   $url = "http://localhost:$Port"
   Write-Host "시뮬레이터 화면: $url"
-  Write-Host "터미널: .\run.ps1 shell   데스크톱(RViz 등): .\run.ps1 desktop   작업 폴더: $HomeDir\ws (컨테이너의 /ws)"
+  Write-Host "터미널: .\run.ps1 shell   데스크톱(RViz 등): .\run.ps1 desktop"
+  Write-Host "작업 폴더: $HomeDir\mit_ws (컨테이너의 /mit_ws, MIT)  $HomeDir\morai_ws (/morai_ws, MORAI는 빌드만 확인)"
   Start-Sleep 3
   Start-Process $url
 }
@@ -80,7 +85,7 @@ switch ($Action) {
     docker pull $Image
     if (Is-Running) { docker rm -f $Name | Out-Null; Start-Sim }
   }
-  "stop"    { Need-Docker; docker rm -f $Name | Out-Null; Write-Host "멈췄습니다. 작업 폴더는 $HomeDir\ws 에 남아 있습니다." }
+  "stop"    { Need-Docker; docker rm -f $Name | Out-Null; Write-Host "멈췄습니다. 작업 폴더는 $HomeDir 에 남아 있습니다." }
   "logs"    { Need-Docker; docker logs --tail 200 -f $Name }
   default   { Get-Content $MyInvocation.MyCommand.Path -TotalCount 7 }
 }

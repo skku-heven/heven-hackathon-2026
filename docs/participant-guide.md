@@ -17,31 +17,43 @@
 6. RViz·rqt 같은 GUI를 쓰고 싶으면 `./run.sh desktop`(Windows: `.\run.ps1 desktop`)으로 브라우저 데스크톱(**http://localhost:6080**)을 엽니다(9절). 켤 때만 돌아서 평소에는 CPU를 쓰지 않습니다.
 7. 운영진이 이미지를 고쳐 다시 올리면 `./run.sh update`로 받습니다. 작업 폴더는 그대로 남습니다.
 
-셸은 bash이고 ROS 2 환경이 미리 불러와져 있습니다. 안내서의 명령은 모두 bash 기준입니다(zsh 등 다른 셸에서는 `setup.bash` 대신 그 셸용 파일을 불러와야 합니다). 작업 폴더는 노트북의 `~/heven2026/ws`(Windows: `%USERPROFILE%\heven2026\ws`)이고, 컨테이너 안에서는 `/ws`입니다. 노트북의 편집기(VS Code 등)로 이 폴더의 코드를 고치면 됩니다. 컨테이너를 지워도 폴더는 남습니다. 결과와 이번 시도의 경로 파일은 `~/heven2026/data`(컨테이너의 `/data`)에 저장됩니다.
+셸은 bash이고 ROS 2 환경이 미리 불러와져 있습니다. 안내서의 명령은 모두 bash 기준입니다(zsh 등 다른 셸에서는 `setup.bash` 대신 그 셸용 파일을 불러와야 합니다).
+
+**작업 폴더**는 노트북의 `~/heven_hackathon_2026`(Windows: `%USERPROFILE%\heven_hackathon_2026`) 하나이고, 종목별 작업공간 둘이 들어 있습니다. 노트북의 편집기(VS Code 등)로 이 폴더의 코드를 고치면 됩니다. 컨테이너를 지워도 폴더는 남습니다.
+
+```
+~/heven_hackathon_2026/
+├── mit_ws/      MIT 코드 (컨테이너의 /mit_ws). 처음 실행하면 src/hk_mit 이 들어 있음. 노트북에서 바로 주행
+├── morai_ws/    MORAI 코드 (컨테이너의 /morai_ws). 처음 실행하면 src/hk_morai 가 들어 있음.
+│                노트북에서는 빌드만 확인하고, 자기 차례에 이 폴더를 USB로 운영진 PC에 가져감(4절)
+└── data/        결과와 이번 시도의 경로·코스 파일 (컨테이너의 /data)
+```
 
 ```bash
-# 컨테이너 셸에서
-cd /ws
-colcon build                         # C++(rclcpp)와 Python(rclpy) 패키지 모두 빌드됩니다
+# 컨테이너 셸에서 (MIT)
+cd /mit_ws
+colcon build                         # 꼭 작업공간 폴더에서. C++(rclcpp)와 Python(rclpy) 패키지 모두 빌드됩니다
 source install/setup.bash
-ros2 launch hk_drive bringup.launch.py      # 기본 코드(경로 추종)
+ros2 launch hk_mit bringup.launch.py         # 기본 코드(경로 추종)
 ```
 
-처음 실행하면 기본 코드(`hk_drive`, Python)가 작업 폴더에 복사돼 있습니다. 같은 코드가 MORAI에서도 돕니다. `ros2 launch hk_drive bringup.launch.py` 하나로 노드 세 개가 뜨고, 토픽으로 이어집니다.
+`build/`, `install/`, `log/`는 `colcon build`를 실행한 작업공간 폴더에 생깁니다. 두 작업공간의 `install/setup.bash`를 한 셸에서 함께 불러오지 마세요.
+
+MIT 기본 코드 `hk_mit`(Python)는 노드 셋이 토픽으로 이어지는 구조입니다(heven-ad-2026과 같은 localization → planner → control). MORAI 기본 코드 `hk_morai`도 같은 구조입니다(4절).
 
 ```
-센서 ─▶ hk_localization ─/hk/local/odom─▶ hk_planner ─/hk/plan/local_path─▶ hk_control ─▶ /hk/control/command
-              (localization.py)              (planner.py)                      (control.py)
+센서 ─▶ localization ─/hk/local/odom─▶ planner ─/hk/plan/local_path─▶ control ─▶ /hk/control/command
 ```
 
-| 파일 | 하는 일 | 고칠 곳 |
+| 파일 (`hk_mit/hk_mit/`) | 하는 일 | 고칠 곳 |
 |---|---|---|
-| `hk_drive/localization.py` | 위치 추정. GNSS·IMU·바퀴 속도로 위치·방향·속력을 구해 `/hk/local/odom`(nav_msgs/Odometry, 50 Hz)에 냅니다. 위치는 GNSS 값을 그대로, 방향은 IMU(MIT는 각속도 적분, MORAI는 자세), 속력은 바퀴 속도 센서(MORAI는 GNSS 이동 거리)입니다. | 예 |
-| `hk_drive/planner.py` | 경로 계획. 전역 경로(0.5 m 간격)에서 차 앞 30 m를 잘라 `/hk/plan/local_path`(nav_msgs/Path, 20 Hz)에 냅니다. 경로 끝을 지나면 빈 경로입니다. | 예 |
-| `hk_drive/control.py` | 제어. `drive()`가 0.02초마다 불리고, odom(`self.x`, `self.y`, `self.yaw`, `self.speed`)과 경로(`self.path`; `self.nearest(x, y)`로 가장 가까운 점과 경로 방향)를 보고 `accel, brake, steer`를 돌려줍니다. 조향은 Stanley, 속력은 PI, 목표 5 m/s입니다. | 예 |
-| `hk_drive/course.py` | 코스·경로 파일 읽기 | 아니요 |
-| `hk_drive/sim_events.py` | 시작·복귀·끝 이벤트(`/sim/events`) 받기 | 아니요 |
-| `hk_drive/utm.py` | 위경도 ↔ 지도 좌표 | 아니요 |
+| `localization.py` | 위치 추정. GNSS 값을 그대로 위치로, IMU 각속도 적분으로 방향, 바퀴 속도로 속력을 구해 `/hk/local/odom`(nav_msgs/Odometry, 50 Hz)과 TF(map → base_link)로 냅니다. | 예 |
+| `planner.py` | 경로 계획. 전역 경로(0.5 m 간격)에서 차 앞 30 m를 잘라 `/hk/plan/local_path`(nav_msgs/Path, 20 Hz)에 냅니다. 경로 끝을 지나면 빈 경로입니다. | 예 |
+| `control.py` | 제어. `drive()`가 0.02초마다 불리고, odom(`self.x`, `self.y`, `self.yaw`, `self.speed`)과 경로(`self.path`; `self.nearest(x, y)`로 가장 가까운 점과 경로 방향)를 보고 `accel, brake, steer`를 돌려줍니다. 조향은 Stanley, 속력은 PI, 목표 5 m/s입니다. | 예 |
+| `lidar_perception.py` | LiDAR(`/hk/sensors/lidar/scan`)를 받아 두기만 합니다. 기본 주행에는 쓰지 않고, `perception:=true`일 때만 뜹니다. | 채울 곳 |
+| `course.py` | 코스·경로 파일 읽기 | 아니요 |
+| `sim_events.py` | 시작·복귀·끝 이벤트(`/sim/events`) 받기 | 아니요 |
+| `utm.py` | 위경도 ↔ 지도 좌표 | 아니요 |
 
 굽은 길 감속, 지연·노면 보정, GNSS 노이즈 필터, 음영 구간을 이어 가는 추측 항법, 장애물을 비켜 가는 경로는 일부러 넣지 않았습니다. 속력을 올리거나 옵션을 켜면서 직접 고쳐 보세요. 노드 하나를 통째로 자기 코드로 바꿔도 됩니다(같은 토픽만 쓰면 됨). C++로 작성해도 됩니다(`colcon build`가 C++·Python 둘 다 빌드).
 
@@ -62,8 +74,8 @@ ros2 launch hk_drive bringup.launch.py      # 기본 코드(경로 추종)
 |---|---|---|
 | `/hk/sensors/gps/fix` | `sensor_msgs/NavSatFix` | 20 Hz(MIT는 기본값), `gps_link`. GNSS 음영 구간에서는 나오지 않음 |
 | `/hk/sensors/imu/data` | `sensor_msgs/Imu` | MIT 기본 100 Hz, 자세 없음(`orientation_covariance[0] = -1`), 가속도에 중력 포함. IMU 노이즈를 켜면 각속도에 백색 잡음 말고도 시도마다 다른 일정한 바이어스(σ 0.003 rad/s)와 천천히 변하는 드리프트(σ 0.001 rad/s, 약 1분)가 붙습니다. 적분만 하면 방향이 조금씩 틀어지고, GNSS 음영에서 특히 크게 벗어나니 바이어스를 추정해 빼세요(정지 상태 평균, GNSS 진행 방향 비교 등) |
-| `/hk/sensors/wheel_speed` | `geometry_msgs/TwistStamped` | MIT만, 기본 50 Hz, `linear.x` = 후륜 바퀴 속도(부호 있음, 슬립 포함) |
-| `/hk/sensors/scan` | `sensor_msgs/LaserScan` | MIT만, 기본 10 Hz, 720빔, 0.5~100 m, 미검출 `+Inf`, 최소 거리 안 `-Inf`. 빔 수·각도·거리는 고정값으로 쓰지 말고 메시지의 `angle_min`·`angle_increment`·`range_min`·`range_max`와 `len(ranges)`를 읽는다. 대회 값은 코스 JSON의 `sensors`에 있다 |
+| `/hk/sensors/wheel_encoder/speed` | `geometry_msgs/TwistStamped` | MIT만, 기본 50 Hz, `linear.x` = 후륜 바퀴 속도(부호 있음, 슬립 포함) |
+| `/hk/sensors/lidar/scan` | `sensor_msgs/LaserScan` | MIT만, 기본 10 Hz, 720빔, 0.5~100 m, 미검출 `+Inf`, 최소 거리 안 `-Inf`. 빔 수·각도·거리는 고정값으로 쓰지 말고 메시지의 `angle_min`·`angle_increment`·`range_min`·`range_max`와 `len(ranges)`를 읽는다. 대회 값은 코스 JSON의 `sensors`에 있다 |
 | `/hk/control/command` | `hk_morai_interfaces/CtrlCmd` | 참가자가 보냄 |
 | `/sim/events` | `hk_interfaces/SimEvent` | START·END·RESPAWN·WARN. QoS reliable + transient local |
 | `/dev/ground_truth` | `nav_msgs/Odometry` | 연습·공터만(공식 시도에는 없음) |
@@ -80,19 +92,22 @@ MIT 센서의 주기, LiDAR 빔 수·시야각·거리, 노이즈 σ는 지도 �
 
 ## 4. MORAI 종목에서 코드 실행
 
-- 참가자용 저장소의 `participant/morai/`(운영진 PC에도 같은 파일이 있음)에 전역 경로(`morai_global_path.csv`, x·y m)와 출발점·체크포인트 14개·속도 구간(`morai_course.json`)이 있습니다.
-- MORAI는 운영진 PC에서 돕니다. 자기 차례에 **소스와 설정 파일**을 USB로 가져오면 운영진이 팀 폴더에 넣고 셸을 열어 줍니다. 노트북에서 빌드한 결과물은 쓰지 않습니다(PC 구조가 다를 수 있음). 그 셸에서 `colcon build` 후 `use_sim_time:=false`로 실행합니다.
-- 운영진 PC에서는 `sudo`나 시스템 `pip`를 쓸 수 없습니다. 팀 폴더 안 가상환경은 됩니다.
-- 기본 코드(`hk_drive`)는 MORAI에서도 그대로 돕니다. MIT와 같은 노드 셋(localization → planner → control, Stanley + PI)이고, 코스 파일을 보고 종목을 알아서 맞춥니다(MORAI: 속도는 GNSS로 추정, 방향은 IMU 자세). MORAI용 실행 파일은 전역 경로를 **3 m/s(약 11 km/h)로 아주 천천히** 따라가 15분 제한 안에 한 바퀴(약 12분)를 돕니다. 빠르게 달리려면 직접 고쳐 보세요.
+- MORAI는 운영진 PC(heven-left, heven-right)에서 돕니다. MORAI·브리지·측정기는 그 PC에 직접 설치돼 있고 Docker를 쓰지 않습니다.
+- 기본 코드 `hk_morai`(작업 폴더의 `morai_ws/src/hk_morai`)는 MIT와 같은 노드 셋(localization → planner → control, Stanley + PI)입니다. MORAI에 맞춰 방향은 IMU 자세, 속력은 GNSS 이동 거리로 구하고(바퀴 속도 센서가 없음), 전역 경로를 **3 m/s(약 11 km/h)로 아주 천천히** 따라가 15분 제한 안에 한 바퀴(약 12분)를 돕니다. 코스 파일(`morai_course.json`: 출발점·체크포인트 14개·속도 구간, `morai_global_path.csv`: 전역 경로)은 패키지의 `course/`에 들어 있습니다.
+- LiDAR(`lidar_perception.py`)와 카메라 4대(`camera_perception.py`)는 받아 두기만 하는 노드가 있습니다. 기본 주행에는 쓰지 않고 `perception:=true`일 때만 뜹니다. 쓰는 방법은 각 파일 맨 위에 있습니다.
+- 노트북에서는 컨테이너 셸에서 빌드만 확인할 수 있습니다: `cd /morai_ws && colcon build`. (MORAI가 노트북에 없어서 주행은 못 해 봅니다.)
+- **자기 차례가 되면:** `morai_ws` 폴더를 USB에 담아 옵니다(`src/`만 있으면 됩니다. 노트북의 `build/`·`install/`은 이 PC에서 쓸 수 없습니다). 운영진이 그 팀의 작업공간 `~/heven_hackathon_2026/team<번호>/morai_ws`에 넣고 셸을 열어 주면, 그 셸에서:
   ```bash
-  ros2 launch hk_drive morai.launch.py morai_dir:=<자료 폴더>/participant/morai     # 속도를 바꾸려면 target_speed:=5.0
+  colcon build && source install/setup.bash
+  ros2 launch hk_morai bringup.launch.py              # 속도를 바꾸려면 target_speed:=5.0
   ```
+- 운영진 PC에 시스템 전체로 설치하지 마세요(`sudo apt`, 시스템 `pip`). 필요한 Python 패키지는 팀 폴더 안 가상환경에 넣습니다: `python3 -m venv --system-site-packages ~/heven_hackathon_2026/team<번호>/.venv`.
 - 시작 전에 운영진이 차를 공식 출발점에 세워 둡니다. 시작을 누르면 `/sim/events`로 START가 오고, 측정은 차가 처음 움직인 순간부터입니다.
-- GPS·IMU·명령 토픽은 MIT와 같습니다(`/hk/sensors/gps/fix`, `/hk/sensors/imu/data`, `/hk/control/command`). 속도 센서와 2D 스캔(`/hk/sensors/scan`)은 없습니다. `hk_morai_interfaces`가 MIT 이미지에 있으니 노트북에서 미리 빌드해 볼 수 있습니다.
+- GPS·IMU·명령 토픽은 MIT와 같습니다(`/hk/sensors/gps/fix`, `/hk/sensors/imu/data`, `/hk/control/command`). 바퀴 속도 센서와 2D 스캔(`/hk/sensors/lidar/scan`)은 없습니다.
 - MORAI에는 LiDAR와 카메라가 있습니다.
   - `/hk/sensors/lidar/points`(`PointCloud2`): 16채널, 10 Hz, 360° 한 장, 필드 `x,y,z,intensity,ring`, frame `lidar_link`
   - `/hk/sensors/camera/{front,left,right,traffic_light}/compressed`(`CompressedImage`, JPEG): 일반 RGB 영상만 나옵니다(바운딩박스·깊이·분할 영상은 없음)
-  - 센서 위치는 TF로 나오지 않습니다. 운영진이 공지하는 `sensor_mounts.yaml`을 보고, 필요하면 직접 TF를 쓰세요. frame_id는 `gps_link`, `imu_link`, `lidar_link`, `camera_<이름>_link`입니다.
+  - 센서 위치는 `hk_description`이 고정 TF로 발행합니다. MORAI 장착 위치는 운영진이 공지하는 `sensor_mounts.yaml`을 사용합니다. frame_id는 `gps_link`, `imu_link`, `lidar_link`, `camera_<이름>_link`입니다.
   - `sensor_mounts.yaml`의 위치는 `base_link`가 아니라 후륜 차축 중심(`rear_axle_link`) 기준이고 단위는 m, 각도(roll·pitch·yaw)는 도입니다. `base_link` 기준으로 쓰려면 z에 파일의 `axle_height_m`(0.3685 m)을 더합니다. 예: GNSS z 1.2 → `base_link` 기준 1.5685 m.
   - 카메라 frame은 x 앞·y 왼쪽·z 위 축 규약을 쓰고, 차량에 대한 실제 방향은 그 카메라의 roll·pitch·yaw를 따릅니다(기본 왼쪽 카메라 yaw 70°).
 
@@ -101,9 +116,9 @@ MIT 센서의 주기, LiDAR 빔 수·시야각·거리, 노이즈 σ는 지도 �
 - `map` 좌표: UTM 52N 좌표에서 종목별 원점 `origin_utm_52n`을 뺀 값(m). 원점은 코스 파일에서 읽으세요.
   - MORAI: (302595, 4124145), `morai_course.json`의 `origin_utm_52n`.
   - MIT: 지도마다 다릅니다. 출발점이 MORAI 기준 시나리오의 ego 위치에 오도록 정한 값이라, 시도마다 쓰이는 `course.json`의 `course.origin_utm_52n`을 읽어야 합니다. MORAI 원점을 MIT에 쓰면 수백 m 틀어집니다.
-  - GNSS 위경도는 UTM 52N으로 바꾼 뒤 이 원점을 빼면 됩니다. 기본 코드는 `hk_drive/utm.py`의 `ll_to_map(lat, lon, origin)`에 코스 파일의 원점을 넘깁니다.
+  - GNSS 위경도는 UTM 52N으로 바꾼 뒤 이 원점을 빼면 됩니다. 기본 코드는 `utm.py`의 `ll_to_map(lat, lon, origin)`에 코스 파일의 원점을 넘깁니다.
 - `base_link`: 후륜 차축 중심을 지면에 내린 점. x 전방, y 좌측, z 위. yaw는 `map` +x에서 반시계.
-- 센서 위치(`base_link` 기준, 기본값): GNSS·IMU (0, 0, 1.5685) m, LiDAR (1.15, 0, 1.7685) m. 두 종목 모두 TF를 발행하지 않으니 필요하면 직접 쓰세요. MORAI 카메라 위치는 `sensor_mounts.yaml`에 있습니다.
+- 센서 위치(`base_link` 기준, 기본값): GNSS·IMU (0, 0, 1.5685) m, LiDAR (1.15, 0, 1.7685) m. 두 종목의 기본 bringup에서 `hk_description`이 센서 TF를 발행합니다. MORAI 카메라 위치는 `sensor_mounts.yaml`에 있습니다.
 
 ## 6. 채점 (MIT)
 
@@ -132,9 +147,9 @@ MIT 센서의 주기, LiDAR 빔 수·시야각·거리, 노이즈 σ는 지도 �
 
 ## 9. 시각화하고 싶다면 (MIT)
 
-참가자 화면이 차·LiDAR·점수를 보여 줍니다. 내 코드의 속(추정 위치, 계획 경로 등)을 보고 싶으면 아래 방법을 씁니다. 작업 폴더(`/ws`)에 쓴 파일은 노트북의 `~/heven2026/ws`에 바로 보입니다.
+참가자 화면이 차·LiDAR·점수를 보여 줍니다. 내 코드의 속(추정 위치, 계획 경로 등)을 보고 싶으면 아래 방법을 씁니다. 작업 폴더(`/mit_ws`)에 쓴 파일은 노트북의 `~/heven_hackathon_2026/mit_ws`에 바로 보입니다.
 
-- **RViz (데스크톱):** `./run.sh desktop`으로 브라우저 데스크톱(http://localhost:6080)을 열고, 그 안의 터미널에서 `ros2 launch hk_drive bringup.launch.py rviz:=true`로 기본 코드와 RViz를 함께 띄웁니다(이미 기본 코드를 띄웠으면 `rviz2 -d /ws/install/hk_drive/share/hk_drive/rviz/hk_drive.rviz`만). 추정 위치(`/hk/local/odom`, 주황), 정답 위치(연습·공터의 `/dev/ground_truth`, 초록), 계획 경로(`/hk/plan/local_path`, 파랑), LiDAR 점이 지도 위에 보입니다. 기본 코드의 localization 노드가 추정 위치를 TF(map → base_link)로 내고, launch가 센서 장착 위치(base_link → lidar_link·imu_link·gps_link)를 고정 TF로 냅니다(시뮬레이터는 TF를 내지 않습니다). rqt(`rqt_plot` 등)도 같은 터미널에서 쓸 수 있습니다. 데스크톱의 화면은 그래픽 카드 없이 그리므로 RViz를 켜 두면 CPU를 더 씁니다.
-- **rosbag:** 컨테이너 셸에서 `ros2 bag record -o /ws/bags/run1 /hk/sensors/gps/fix /hk/sensors/imu/data /hk/sensors/scan /hk/control/command <내 토픽>`로 녹화하고 `Ctrl+C`로 끝냅니다. 노트북에 ROS 2가 있으면 `ros2 bag play`와 RViz로, 없으면 rosbag을 여는 데스크톱 뷰어로 봅니다. 연습·공터에서는 `/dev/ground_truth`(정답 위치)도 함께 녹화해 내 추정과 비교할 수 있습니다.
-- **CSV:** 노드에서 시각·추정 위치·목표점·오차를 `/ws/log.csv`에 적고 노트북의 Python·엑셀로 그립니다. 제어 이득을 맞출 때 가장 쓸모 있습니다.
-- **그림 파일:** 이미지에 OpenCV(`cv2`)가 있습니다. 위에서 본 그림을 `/ws/viz.png`로 저장하거나, 데스크톱 안에서 띄운 노드라면 `cv2.imshow` 창도 데스크톱에 뜹니다.
+- **RViz (데스크톱):** `./run.sh desktop`으로 브라우저 데스크톱(http://localhost:6080)을 열고, 그 안의 터미널에서 `ros2 launch hk_mit bringup.launch.py rviz:=true`로 기본 코드와 RViz를 함께 띄웁니다(이미 기본 코드를 띄웠으면 `rviz2 -d /mit_ws/install/hk_mit/share/hk_mit/rviz/hk_mit.rviz`만). 추정 위치(`/hk/local/odom`, 주황), 정답 위치(연습·공터의 `/dev/ground_truth`, 초록), 계획 경로(`/hk/plan/local_path`, 파랑), LiDAR 점이 지도 위에 보입니다. 기본 코드의 localization 노드가 추정 위치를 TF(map → base_link)로 내고, `hk_description`의 robot_state_publisher가 센서 장착 위치를 고정 TF로 냅니다(시뮬레이터는 TF를 내지 않습니다). rqt(`rqt_plot` 등)도 같은 터미널에서 쓸 수 있습니다. 데스크톱의 화면은 그래픽 카드 없이 그리므로 RViz를 켜 두면 CPU를 더 씁니다.
+- **rosbag:** 컨테이너 셸에서 `ros2 bag record -o /mit_ws/bags/run1 /hk/sensors/gps/fix /hk/sensors/imu/data /hk/sensors/lidar/scan /hk/control/command <내 토픽>`로 녹화하고 `Ctrl+C`로 끝냅니다. 노트북에 ROS 2가 있으면 `ros2 bag play`와 RViz로, 없으면 rosbag을 여는 데스크톱 뷰어로 봅니다. 연습·공터에서는 `/dev/ground_truth`(정답 위치)도 함께 녹화해 내 추정과 비교할 수 있습니다.
+- **CSV:** 노드에서 시각·추정 위치·목표점·오차를 `/mit_ws/log.csv`에 적고 노트북의 Python·엑셀로 그립니다. 제어 이득을 맞출 때 가장 쓸모 있습니다.
+- **그림 파일:** 이미지에 OpenCV(`cv2`)가 있습니다. 위에서 본 그림을 `/mit_ws/viz.png`로 저장하거나, 데스크톱 안에서 띄운 노드라면 `cv2.imshow` 창도 데스크톱에 뜹니다.

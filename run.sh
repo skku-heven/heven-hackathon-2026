@@ -10,7 +10,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 NAME=heven
 IMAGE="${HEVEN_IMAGE:-ghcr.io/skku-heven/heven-hackathon-2026:2026}"
-HOME_DIR="${HEVEN_HOME:-$HOME/heven2026}"
+HOME_DIR="${HEVEN_HOME:-$HOME/heven_hackathon_2026}"   # mit_ws (/mit_ws), morai_ws (/morai_ws), data (/data)
 PORT="${HEVEN_PORT:-8080}"
 DESKTOP_PORT="${HEVEN_DESKTOP_PORT:-6080}"
 
@@ -42,20 +42,24 @@ get_image() {
 }
 
 shell_user() {  # Linux: run as the host user so files in the workspace stay editable on the host
-  if [ "$(uname -s)" = Linux ]; then echo "-u $(id -u):$(id -g) -e HOME=/ws/.home -e ROS_LOG_DIR=/ws/.home/ros_log"; fi
+  if [ "$(uname -s)" = Linux ]; then echo "-u $(id -u):$(id -g) -e HOME=/mit_ws/.home -e ROS_LOG_DIR=/mit_ws/.home/ros_log"; fi
 }
 
-prepare_dirs() {
-  mkdir -p "$HOME_DIR/ws/src" "$HOME_DIR/data"
-  if [ -z "$(ls -A "$HOME_DIR/ws/src" 2>/dev/null)" ]; then
-    if [ -d "$HERE/participant/drive" ]; then
-      cp -R "$HERE/participant/drive/." "$HOME_DIR/ws/src/"
-    else                                        # the base code inside the image
-      # shellcheck disable=SC2046
-      docker run --rm $(shell_user) -v "$HOME_DIR/ws:/ws" --entrypoint cp "$IMAGE" -R /opt/heven/src/hk_drive /ws/src/
+prepare_dirs() {  # the base code into each empty workspace: hk_mit -> mit_ws, hk_morai -> morai_ws
+  mkdir -p "$HOME_DIR/mit_ws/src" "$HOME_DIR/morai_ws/src" "$HOME_DIR/data"
+  local ws pkg
+  for ws in mit morai; do
+    pkg="hk_$ws"
+    if [ -z "$(ls -A "$HOME_DIR/${ws}_ws/src" 2>/dev/null)" ]; then
+      if [ -d "$HERE/participant/$pkg" ]; then
+        cp -R "$HERE/participant/$pkg" "$HOME_DIR/${ws}_ws/src/"
+      else                                      # the base code inside the image
+        # shellcheck disable=SC2046
+        docker run --rm $(shell_user) -v "$HOME_DIR/${ws}_ws:/w" --entrypoint cp "$IMAGE" -R "/opt/heven/src/$pkg" /w/src/
+      fi
+      echo "기본 코드 $pkg 를 $HOME_DIR/${ws}_ws/src 에 복사했습니다."
     fi
-    echo "기본 코드를 $HOME_DIR/ws/src 에 복사했습니다."
-  fi
+  done
 }
 
 running() { docker ps --format '{{.Names}}' | grep -qx "$NAME"; }
@@ -68,11 +72,12 @@ start() {
     if [ "$(uname -s)" = Linux ]; then ids="-e HEVEN_UID=$(id -u) -e HEVEN_GID=$(id -g)"; fi
     # shellcheck disable=SC2086
     docker run -d --name "$NAME" -p "127.0.0.1:$PORT:8080" -p "127.0.0.1:$DESKTOP_PORT:6080" $ids \
-      -v "$HOME_DIR/ws:/ws" -v "$HOME_DIR/data:/data" "$IMAGE" >/dev/null
+      -v "$HOME_DIR/mit_ws:/mit_ws" -v "$HOME_DIR/morai_ws:/morai_ws" -v "$HOME_DIR/data:/data" "$IMAGE" >/dev/null
   fi
   local url="http://localhost:$PORT"
   echo "시뮬레이터 화면: $url"
-  echo "터미널: $0 shell   데스크톱(RViz 등): $0 desktop   작업 폴더: $HOME_DIR/ws (컨테이너의 /ws)"
+  echo "터미널: $0 shell   데스크톱(RViz 등): $0 desktop"
+  echo "작업 폴더: $HOME_DIR/mit_ws (컨테이너의 /mit_ws, MIT)  $HOME_DIR/morai_ws (/morai_ws, MORAI는 빌드만 확인)"
   sleep 3
   open_url "$url"
 }
@@ -94,7 +99,7 @@ case "${1:-start}" in
     need_docker
     docker pull "$IMAGE"
     if running; then docker rm -f "$NAME" >/dev/null; start; fi ;;
-  stop) need_docker; docker rm -f "$NAME" >/dev/null && echo "멈췄습니다. 작업 폴더는 $HOME_DIR/ws 에 남아 있습니다." ;;
+  stop) need_docker; docker rm -f "$NAME" >/dev/null && echo "멈췄습니다. 작업 폴더는 $HOME_DIR 에 남아 있습니다." ;;
   logs) need_docker; docker logs --tail 200 -f "$NAME" ;;
   *) sed -n '2,8p' "$0"; exit 2 ;;
 esac
