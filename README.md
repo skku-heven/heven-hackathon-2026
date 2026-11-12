@@ -2,7 +2,25 @@
 
 HEVEN 2026 Docker 배포본 기반 참가자 실행 환경·스켈레톤·사용 문서.
 
-현재 공통 템플릿 bootstrap 단계이며 시뮬레이터·배포 이미지·참가자 코드는 아직 포함하지 않는다.
+## 빠른 시작 (MIT 종목)
+
+1. Docker를 설치하고 켭니다(Windows·macOS: Docker Desktop, Ubuntu: Docker Engine). 자세한 방법은 [참가자 안내서](docs/participant-guide.md) 1절.
+2. 이 저장소를 내려받고 그 폴더에서 실행합니다. 처음 한 번은 시뮬레이터 이미지(약 3.5 GB, `ghcr.io/skku-heven/heven-hackathon-2026:2026`)를 내려받습니다.
+
+```bash
+./run.sh            # macOS·Ubuntu  (Windows PowerShell: .\run.ps1)
+```
+
+3. 브라우저에 시뮬레이터 화면 **http://localhost:8080** 이 열립니다. 기본 코드(`hk_drive`)는 작업 폴더 `~/heven2026/ws/src`에 복사됩니다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `./run.sh shell` | 컨테이너 셸(ROS 2 Humble). `cd /ws && colcon build && source install/setup.bash && ros2 launch hk_drive bringup.launch.py` |
+| `./run.sh desktop` | 브라우저 데스크톱 **http://localhost:6080** (RViz·rqt·터미널, 켤 때만 돔) |
+| `./run.sh update` | 새로 올라온 이미지 받기(작업 폴더는 그대로) |
+| `./run.sh stop` | 끄기 |
+
+MORAI 종목의 코스 파일은 [`participant/morai/`](participant/morai/)에 있고, 실행 방법은 안내서 4절에 있습니다.
 
 ## 시작하기
 
@@ -10,7 +28,7 @@ GitHub Issue·PR·Project를 사용한다. StrictDoc OFF 저장소라 이슈 →
 
 ## 배포 경계
 
-개발 저장소 [heven-hackathon-2026-dev](https://github.com/skku-heven/heven-hackathon-2026-dev)가 검증한 Docker 이미지를 사용한다. 이미지와 실행 명령은 배포가 준비되면 추가한다. StrictDoc은 OFF이며 요구사항 정본을 중복 관리하지 않는다.
+개발 저장소 [heven-hackathon-2026-dev](https://github.com/skku-heven/heven-hackathon-2026-dev)가 검증한 Docker 이미지(GitHub 패키지)를 사용한다. `run.sh`·`run.ps1`·안내서·MORAI 코스 파일은 개발 저장소의 `deployment/`, `docs/participant-guide.md`, `ops/morai/participant/`에서 복사한다. StrictDoc은 OFF이며 요구사항 정본을 중복 관리하지 않는다.
 
 ## 협업 설정
 
