@@ -1,4 +1,4 @@
-# HEVEN 2026 MIT simulator launcher (Windows PowerShell).
+﻿# HEVEN 2026 MIT simulator launcher (Windows PowerShell).
 #   .\run.ps1          start (downloads the image the first time) and open the simulator screen in the browser
 #   .\run.ps1 shell    open a terminal inside the container (build and run your code here)
 #   .\run.ps1 desktop  open a desktop in the browser (noVNC) for RViz, rqt and terminals
