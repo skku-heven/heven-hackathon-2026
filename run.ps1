@@ -78,7 +78,7 @@ switch ($Action) {
     if (-not (Is-Running)) { Start-Sim }
     docker exec $Name heven-desktop
     Start-Sleep 2
-    Start-Process "http://localhost:${DesktopPort}/vnc.html?autoconnect=1&resize=remote"
+    Start-Process "http://localhost:${DesktopPort}/vnc.html?autoconnect=1&resize=scale&view_only=0"
   }
   "update"  {
     Need-Docker

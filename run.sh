@@ -94,7 +94,7 @@ case "${1:-start}" in
     # shellcheck disable=SC2046
     docker exec $(shell_user) "$NAME" bash -c 'mkdir -p "$HOME"; heven-desktop'
     sleep 2
-    open_url "http://localhost:$DESKTOP_PORT/vnc.html?autoconnect=1&resize=remote" ;;
+    open_url "http://localhost:$DESKTOP_PORT/vnc.html?autoconnect=1&resize=scale&view_only=0" ;;
   update)
     need_docker
     docker pull "$IMAGE"
